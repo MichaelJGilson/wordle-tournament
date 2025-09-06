@@ -564,14 +564,41 @@
             <div id="connectionStatus" class="connection-status connecting">Connecting to server...</div>
         </div>
 
-        <!-- Game Setup Screen -->
-        <div id="gameSetup" class="game-setup">
-            <h2>Join the Battle!</h2>
+        <!-- Main Menu Screen -->
+        <div id="mainMenu" class="game-setup">
+            <h2>Choose Game Mode</h2>
+            <div class="button-group" style="flex-direction: column; gap: 20px;">
+                <button class="btn" onclick="showPublicMatchmaking()" style="padding: 20px 40px; font-size: 1.2rem;">
+                    🌟 Join Public Game
+                    <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">Quick match with random players</div>
+                </button>
+                <button class="btn" onclick="showCustomGame()" style="padding: 20px 40px; font-size: 1.2rem;">
+                    🏠 Custom Room
+                    <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">Create or join private games</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Public Matchmaking Screen -->
+        <div id="publicMatchmaking" class="game-setup hidden">
+            <h2>Public Tournament</h2>
+            <input type="text" id="publicPlayerName" class="input-field" placeholder="Enter your name" maxlength="20">
+            <div id="publicMatchStatus" class="message info">Ready to find a match!</div>
+            <div class="button-group">
+                <button class="btn" id="findMatchBtn" onclick="findPublicMatch()">🔍 Find Match</button>
+                <button class="btn" onclick="backToMainMenu()">Back</button>
+            </div>
+        </div>
+
+        <!-- Custom Game Setup Screen -->
+        <div id="gameSetup" class="game-setup hidden">
+            <h2>Custom Room</h2>
             <input type="text" id="playerName" class="input-field" placeholder="Enter your name" maxlength="20">
             <input type="text" id="gameId" class="input-field" placeholder="Game ID (optional - leave empty to create new game)" maxlength="50">
             <div class="button-group">
-                <button class="btn" onclick="createGame()">Create Game</button>
-                <button class="btn" onclick="joinGame()">Join Game</button>
+                <button class="btn" onclick="createGame()">Create Room</button>
+                <button class="btn" onclick="joinGame()">Join Room</button>
+                <button class="btn" onclick="backToMainMenu()">Back</button>
             </div>
         </div>
 
@@ -708,7 +735,9 @@
             tournamentMode: true,
             currentMatch: null, // Will contain match info including opponent and timer
             clientTimer: 0, // Client-side timer for real-time countdown
-            timerInterval: null // Client timer interval
+            timerInterval: null, // Client timer interval
+            publicMatchmaking: false, // Whether in public matchmaking mode
+            matchmakingInterval: null // Public matchmaking polling interval
         };
 
         // Socket.io connection
@@ -774,6 +803,32 @@
             socket.on('error', (error) => {
                 console.error('🔥 Socket error:', error);
                 showMessage('Socket connection error: ' + error.message, 'error');
+            });
+
+            // Public matchmaking event handlers
+            socket.on('queueStatus', (status) => {
+                console.log('📊 Queue status update:', status);
+                if (status.inQueue) {
+                    const waitTime = status.estimatedWaitTime > 0 ? ` (~${status.estimatedWaitTime}s wait)` : '';
+                    showPublicMessage(`In queue: Position ${status.queuePosition} of ${status.queueSize}${waitTime}`, 'info');
+                } else {
+                    showPublicMessage('Left matchmaking queue', 'info');
+                }
+            });
+
+            socket.on('matchFound', (matchData) => {
+                console.log('🎉 Match found:', matchData);
+                gameState.gameId = matchData.gameId;
+                gameState.playerId = matchData.playerId;
+                gameState.playerName = document.getElementById('publicPlayerName').value.trim();
+                
+                showPublicMessage(`Match found! Opponent: ${matchData.opponent}`, 'success');
+                
+                // Hide public matchmaking UI and show game
+                document.getElementById('publicMatchmakingScreen').classList.add('hidden');
+                document.getElementById('gameScreen').classList.remove('hidden');
+                
+                gameState.publicMatchmaking = false;
             });
         }
 
@@ -881,13 +936,75 @@
             });
         }
 
+        // Public matchmaking functions
+        function findPublicMatch() {
+            const playerName = document.getElementById('publicPlayerName').value.trim();
+            
+            if (!playerName) {
+                showPublicMessage('Please enter your name', 'error');
+                return;
+            }
+            
+            if (!socket || !gameState.connected) {
+                showPublicMessage('Not connected to server', 'error');
+                return;
+            }
+
+            gameState.playerName = playerName;
+            gameState.publicMatchmaking = true;
+            
+            document.getElementById('findMatchBtn').textContent = '⏳ Searching...';
+            document.getElementById('findMatchBtn').disabled = true;
+            
+            showPublicMessage('Joining matchmaking queue...', 'info');
+            
+            // Join public matchmaking queue
+            socket.emit('joinPublicQueue', { playerName: playerName }, (response) => {
+                if (response.success) {
+                    showPublicMessage(`Added to queue (Position ${response.queuePosition})`, 'info');
+                } else {
+                    showPublicMessage(response.error || 'Failed to join matchmaking', 'error');
+                    resetPublicMatchmaking();
+                }
+            });
+        }
+
+        function cancelPublicMatch() {
+            if (gameState.publicMatchmaking && socket && gameState.connected) {
+                socket.emit('leavePublicQueue', {}, (response) => {
+                    if (response && response.success) {
+                        showPublicMessage('Left matchmaking queue', 'info');
+                    }
+                });
+            }
+            
+            gameState.publicMatchmaking = false;
+            resetPublicMatchmaking();
+        }
+
+        function resetPublicMatchmaking() {
+            document.getElementById('findMatchBtn').textContent = '🔍 Find Match';
+            document.getElementById('findMatchBtn').disabled = false;
+            gameState.publicMatchmaking = false;
+        }
+
+
+        function showPublicMessage(text, type) {
+            const messageEl = document.getElementById('publicMatchStatus');
+            if (messageEl) {
+                messageEl.textContent = text;
+                messageEl.className = `message ${type}`;
+            }
+        }
+
         function leaveGame() {
             if (socket && gameState.connected) {
                 socket.disconnect();
             }
             
-            // Stop any running timers
+            // Stop any running timers and matchmaking
             stopClientTimer();
+            cancelPublicMatch();
             
             gameState = {
                 gameId: null,
@@ -911,10 +1028,40 @@
         }
 
         // UI management functions
-        function showSetup() {
+        function showMainMenu() {
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('publicMatchmaking').classList.add('hidden');
+            document.getElementById('gameSetup').classList.add('hidden');
+            document.getElementById('gameLobby').classList.add('hidden');
+            document.getElementById('mainGame').classList.add('hidden');
+        }
+
+        function showPublicMatchmaking() {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('publicMatchmaking').classList.remove('hidden');
+            document.getElementById('gameSetup').classList.add('hidden');
+            document.getElementById('gameLobby').classList.add('hidden');
+            document.getElementById('mainGame').classList.add('hidden');
+        }
+
+        function showCustomGame() {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('publicMatchmaking').classList.add('hidden');
             document.getElementById('gameSetup').classList.remove('hidden');
             document.getElementById('gameLobby').classList.add('hidden');
             document.getElementById('mainGame').classList.add('hidden');
+        }
+
+        function backToMainMenu() {
+            // Stop any ongoing matchmaking
+            if (gameState.publicMatchmaking) {
+                cancelPublicMatch();
+            }
+            showMainMenu();
+        }
+
+        function showSetup() {
+            showMainMenu(); // Redirect old calls to main menu
         }
 
         function showLobby() {

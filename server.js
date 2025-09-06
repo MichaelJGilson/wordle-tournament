@@ -145,6 +145,159 @@ loadWordLists();
 const activeGames = new Map();
 const playerSockets = new Map();
 
+// Public matchmaking queue
+const publicMatchmakingQueue = [];
+let publicMatchmakingInterval = null;
+
+// Public matchmaking functions
+function startPublicMatchmaking() {
+    if (publicMatchmakingInterval) return;
+    
+    publicMatchmakingInterval = setInterval(() => {
+        processPublicMatchmakingQueue();
+    }, 2000); // Check every 2 seconds
+    
+    console.log('🔄 Public matchmaking started');
+}
+
+function stopPublicMatchmaking() {
+    if (publicMatchmakingInterval) {
+        clearInterval(publicMatchmakingInterval);
+        publicMatchmakingInterval = null;
+        console.log('⏹️ Public matchmaking stopped');
+    }
+}
+
+function addToPublicQueue(socket, playerName) {
+    // Remove any existing entries for this socket
+    removeFromPublicQueue(socket.id);
+    
+    const queueEntry = {
+        socketId: socket.id,
+        playerName: playerName,
+        joinedAt: Date.now()
+    };
+    
+    publicMatchmakingQueue.push(queueEntry);
+    console.log(`➕ Player ${playerName} (${socket.id}) added to public queue. Queue size: ${publicMatchmakingQueue.length}`);
+    
+    // Start matchmaking if not already running
+    startPublicMatchmaking();
+    
+    // Notify player of queue status
+    socket.emit('queueStatus', {
+        inQueue: true,
+        queuePosition: publicMatchmakingQueue.length,
+        queueSize: publicMatchmakingQueue.length,
+        estimatedWaitTime: Math.max(0, Math.ceil((publicMatchmakingQueue.length - 1) / 2) * 3) // rough estimate in seconds
+    });
+    
+    return queueEntry;
+}
+
+function removeFromPublicQueue(socketId) {
+    const index = publicMatchmakingQueue.findIndex(entry => entry.socketId === socketId);
+    if (index !== -1) {
+        const removed = publicMatchmakingQueue.splice(index, 1)[0];
+        console.log(`➖ Player ${removed.playerName} (${socketId}) removed from public queue. Queue size: ${publicMatchmakingQueue.length}`);
+        
+        // Update queue positions for remaining players
+        updateQueuePositions();
+        
+        // Stop matchmaking if queue is empty
+        if (publicMatchmakingQueue.length === 0) {
+            stopPublicMatchmaking();
+        }
+        
+        return removed;
+    }
+    return null;
+}
+
+function updateQueuePositions() {
+    publicMatchmakingQueue.forEach((entry, index) => {
+        const socket = io.sockets.sockets.get(entry.socketId);
+        if (socket) {
+            socket.emit('queueStatus', {
+                inQueue: true,
+                queuePosition: index + 1,
+                queueSize: publicMatchmakingQueue.length,
+                estimatedWaitTime: Math.max(0, Math.ceil(index / 2) * 3)
+            });
+        }
+    });
+}
+
+function processPublicMatchmakingQueue() {
+    if (publicMatchmakingQueue.length < 2) {
+        return; // Need at least 2 players
+    }
+    
+    // Take first 2 players from queue
+    const player1Entry = publicMatchmakingQueue.shift();
+    const player2Entry = publicMatchmakingQueue.shift();
+    
+    console.log(`🎮 Creating public match: ${player1Entry.playerName} vs ${player2Entry.playerName}`);
+    
+    // Get socket instances
+    const socket1 = io.sockets.sockets.get(player1Entry.socketId);
+    const socket2 = io.sockets.sockets.get(player2Entry.socketId);
+    
+    // Validate sockets still exist
+    if (!socket1 || !socket2) {
+        console.log('⚠️ One or both players disconnected, returning to queue processing');
+        // Put back the valid player if any
+        if (socket1) publicMatchmakingQueue.unshift(player1Entry);
+        if (socket2) publicMatchmakingQueue.unshift(player2Entry);
+        return;
+    }
+    
+    // Create a new public game
+    const gameId = generateShortId(6);
+    const game = new Game(gameId, 2); // Max 2 players for public matches
+    game.isPublicMatch = true;
+    
+    activeGames.set(gameId, game);
+    
+    // Add both players to the game
+    socket1.join(gameId);
+    socket2.join(gameId);
+    
+    const result1 = game.addPlayer(socket1.id, player1Entry.playerName);
+    const result2 = game.addPlayer(socket2.id, player2Entry.playerName);
+    
+    if (result1.success && result2.success) {
+        // Notify both players they found a match
+        socket1.emit('matchFound', {
+            gameId: gameId,
+            playerId: result1.playerId,
+            opponent: player2Entry.playerName
+        });
+        
+        socket2.emit('matchFound', {
+            gameId: gameId,
+            playerId: result2.playerId,
+            opponent: player1Entry.playerName
+        });
+        
+        // Start the game automatically after a brief delay
+        setTimeout(() => {
+            if (game.startGame()) {
+                game.broadcastGameState();
+                console.log(`✅ Public match started: ${gameId}`);
+            }
+        }, 2000);
+        
+    } else {
+        console.log('❌ Failed to create public match, returning players to queue');
+        // Return players to queue if game creation failed
+        publicMatchmakingQueue.unshift(player2Entry, player1Entry);
+    }
+    
+    // Update queue positions for remaining players
+    updateQueuePositions();
+}
+
 // Calculate round-based score multiplier
 function getRoundMultiplier(round) {
     // Round 1: 1x, Round 2: 1.5x, Round 3: 2x, Round 4+: 2.5x, Final: 3x
@@ -802,8 +955,88 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Public matchmaking handlers
+    socket.on('joinPublicQueue', (data, callback) => {
+        try {
+            const { playerName } = data;
+            
+            if (!playerName || playerName.trim().length === 0) {
+                callback({ success: false, error: 'Player name is required' });
+                return;
+            }
+            
+            // Make sure player isn't already in a game
+            const existingPlayerInfo = playerSockets.get(socket.id);
+            if (existingPlayerInfo) {
+                callback({ success: false, error: 'Already in a game or queue' });
+                return;
+            }
+            
+            const queueEntry = addToPublicQueue(socket, playerName.trim());
+            callback({ 
+                success: true, 
+                queuePosition: publicMatchmakingQueue.length,
+                message: 'Added to public matchmaking queue' 
+            });
+            
+            console.log(`🎯 ${playerName} joined public queue`);
+            
+        } catch (error) {
+            console.error('Error in joinPublicQueue:', error);
+            callback({ success: false, error: 'Server error occurred' });
+        }
+    });
+
+    socket.on('leavePublicQueue', (data, callback) => {
+        try {
+            const removed = removeFromPublicQueue(socket.id);
+            
+            if (removed) {
+                socket.emit('queueStatus', { inQueue: false });
+                callback({ success: true, message: 'Removed from queue' });
+                console.log(`🚪 ${removed.playerName} left public queue`);
+            } else {
+                callback({ success: false, error: 'Not in queue' });
+            }
+            
+        } catch (error) {
+            console.error('Error in leavePublicQueue:', error);
+            callback({ success: false, error: 'Server error occurred' });
+        }
+    });
+
+    socket.on('getQueueStatus', (data, callback) => {
+        try {
+            const queueIndex = publicMatchmakingQueue.findIndex(entry => entry.socketId === socket.id);
+            
+            if (queueIndex !== -1) {
+                callback({
+                    success: true,
+                    inQueue: true,
+                    queuePosition: queueIndex + 1,
+                    queueSize: publicMatchmakingQueue.length,
+                    estimatedWaitTime: Math.max(0, Math.ceil(queueIndex / 2) * 3)
+                });
+            } else {
+                callback({
+                    success: true,
+                    inQueue: false,
+                    queuePosition: 0,
+                    queueSize: publicMatchmakingQueue.length
+                });
+            }
+            
+        } catch (error) {
+            console.error('Error in getQueueStatus:', error);
+            callback({ success: false, error: 'Server error occurred' });
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
+        
+        // Remove from public queue if in queue
+        removeFromPublicQueue(socket.id);
         
         const playerInfo = playerSockets.get(socket.id);
         if (playerInfo) {
@@ -848,6 +1081,14 @@ app.get('/api/game/:gameId', (req, res) => {
         return res.status(404).json({ error: 'Game not found' });
     }
     res.json(game.getGameState());
+});
+
+app.get('/api/public/queue', (req, res) => {
+    res.json({
+        queueSize: publicMatchmakingQueue.length,
+        isMatchmakingActive: publicMatchmakingInterval !== null,
+        estimatedWaitTime: Math.max(0, Math.ceil(publicMatchmakingQueue.length / 2) * 3)
+    });
 });
 
 const PORT = process.env.PORT || 3000;
