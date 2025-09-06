@@ -1278,8 +1278,12 @@
 
             // Show scoring feedback
             if (correct) {
-                const roundText = gameState.round > 1 ? ` (Round ${gameState.round} bonus!)` : '';
-                showMessage(`🎉 Correct! +${totalScore} points total${roundText}`, 'success');
+                let bonusText = '';
+                if (earlyBonus > 0) {
+                    bonusText = ` (+${earlyBonus} completion bonus!)`;
+                }
+                const roundText = gameState.round > 1 ? ` [Round ${gameState.round}]` : '';
+                showMessage(`🎉 WORD SOLVED! ${totalScore} points${bonusText}${roundText}`, 'success');
             } else if (pointsEarned > 0) {
                 const roundText = gameState.round > 1 ? ` (${gameState.round}x multiplier)` : '';
                 showMessage(`+${pointsEarned} points${roundText}! Total: ${totalScore}`, 'info');

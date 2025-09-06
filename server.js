@@ -259,17 +259,20 @@ class Match {
 
         // Apply round multiplier
         const guessPoints = Math.round(basePoints * this.roundMultiplier);
+        const previousScore = playerProgress.score;
         playerProgress.score += guessPoints;
 
-        console.log(`📊 Round ${this.round} scoring - Base: ${basePoints}, Multiplier: ${this.roundMultiplier}x, Final: ${guessPoints}`);
+        console.log(`📊 Round ${this.round} scoring - Base: ${basePoints}, Multiplier: ${this.roundMultiplier}x, Points: ${guessPoints}, Score: ${previousScore} → ${playerProgress.score}`);
 
         if (guess === target) {
             playerProgress.completed = true;
-            // Early completion bonus: 50 - (10 * number of guesses used), also multiplied
-            const baseBonus = Math.max(50 - (playerProgress.currentRow * 10), 10);
+            // Generous early completion bonus with better scaling:
+            // Guess 1: 150 points, Guess 2: 120 points, Guess 3: 90 points, Guess 4: 60 points, Guess 5: 40 points, Guess 6: 25 points
+            const baseBonusByRow = [0, 150, 120, 90, 60, 40, 25]; // Index 0 unused, 1-6 for rows
+            const baseBonus = baseBonusByRow[Math.min(playerProgress.currentRow, 6)];
             const earlyBonus = Math.round(baseBonus * this.roundMultiplier);
             playerProgress.score += earlyBonus;
-            console.log(`🎉 Completion bonus - Base: ${baseBonus}, Multiplied: ${earlyBonus}`);
+            console.log(`🎉 WORD COMPLETED! Row: ${playerProgress.currentRow}, Base bonus: ${baseBonus}, Multiplied: ${earlyBonus}, Total score: ${playerProgress.score}`);
             this.winner = playerId;
             this.resolveMatch();
         }
