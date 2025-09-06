@@ -717,6 +717,11 @@ io.on('connection', (socket) => {
     });
 });
 
+// Serve the main game page
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'wordle_battle_royale_fixed.html'));
+});
+
 // API routes
 app.get('/api/health', (req, res) => {
     res.json({ 
