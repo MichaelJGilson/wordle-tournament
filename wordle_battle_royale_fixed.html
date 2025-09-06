@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wordle Battle Royale - Multiplayer</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #121213;
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .title {
+            font-size: 3rem;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+            color: white;
+        }
+
+        .game-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: #818384;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #3a3a3c;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .wordle-container {
+            background: #121213;
+            border-radius: 20px;
+            padding: 30px;
+            color: white;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            border: 1px solid #3a3a3c;
+        }
+
+        .word-grid {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            gap: 5px;
+            margin-bottom: 30px;
+            max-width: 350px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .word-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+        }
+
+        .letter-cell {
+            width: 62px;
+            height: 62px;
+            border: 2px solid #3a3a3c;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 8px;
+            transition: border-color 0.2s ease;
+            background: #121213;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .letter-cell.filled {
+            border-color: #565758;
+            animation: pop 0.1s ease-in-out;
+        }
+
+        .letter-cell.correct {
+            background-color: #538d4e !important;
+            border-color: #538d4e !important;
+            color: white !important;
+        }
+
+        .letter-cell.present {
+            background-color: #b59f3b !important;
+            border-color: #b59f3b !important;
+            color: white !important;
+        }
+
+        .letter-cell.absent {
+            background-color: #3a3a3c !important;
+            border-color: #3a3a3c !important;
+            color: white !important;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes flip {
+            0% { 
+                transform: rotateX(0deg);
+            }
+            50% { 
+                transform: rotateX(-90deg);
+            }
+            100% { 
+                transform: rotateX(0deg);
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .letter-cell.flipping {
+            animation: flip 0.6s ease-in-out;
+        }
+
+        .word-row.shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .keyboard {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .keyboard-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .key {
+            height: 58px;
+            border-radius: 4px;
+            border: none;
+            background: #818384;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            color: white;
+            font-size: 12px;
+        }
+
+        .key:hover {
+            background: #565758;
+        }
+        
+        .key.correct {
+            background: #538d4e !important;
+        }
+        
+        .key.present {
+            background: #b59f3b !important;
+        }
+        
+        .key.absent {
+            background: #3a3a3c !important;
+        }
+
+        .key.wide {
+            flex: 1.5;
+            font-size: 12px;
+        }
+
+        .key.letter {
+            flex: 1;
+            min-width: 43px;
+        }
+
+        .sidebar {
+            background: #818384;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #3a3a3c;
+            height: fit-content;
+        }
+
+        .opponent-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #3a3a3c;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .opponent-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #b59f3b;
+        }
+
+        .opponent-grid {
+            display: grid;
+            grid-template-rows: repeat(6, 1fr);
+            gap: 2px;
+            max-width: 150px;
+            margin: 0 auto;
+        }
+
+        .opponent-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+        }
+
+        .opponent-cell {
+            width: 25px;
+            height: 25px;
+            border: 1px solid #565758;
+            border-radius: 3px;
+            background: #121213;
+        }
+
+        .opponent-cell.correct {
+            background-color: #538d4e !important;
+            border-color: #538d4e !important;
+        }
+
+        .opponent-cell.present {
+            background-color: #b59f3b !important;
+            border-color: #b59f3b !important;
+        }
+
+        .opponent-cell.absent {
+            background-color: #3a3a3c !important;
+            border-color: #3a3a3c !important;
+        }
+
+        .match-info {
+            background: #538d4e;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .match-timer {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .tournament-info {
+            background: #3a3a3c;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .players-list {
+            margin-bottom: 30px;
+        }
+
+        .players-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .player-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #3a3a3c;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .player-item.you {
+            background: #538d4e;
+            border: 1px solid #6aaa64;
+        }
+
+        .player-item.eliminated {
+            opacity: 0.5;
+            background: #3a3a3c;
+            text-decoration: line-through;
+        }
+
+        .player-name {
+            font-weight: bold;
+        }
+
+        .player-score {
+            background: #121213;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        .game-controls {
+            text-align: center;
+        }
+
+        .btn {
+            background: #538d4e;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .btn:hover {
+            background: #6aaa64;
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0,0,0,0.4);
+        }
+
+        .message {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .message.success {
+            background: #538d4e;
+            color: white;
+            border: 1px solid #6aaa64;
+        }
+
+        .message.error {
+            background: #3a3a3c;
+            color: white;
+            border: 1px solid #565758;
+        }
+
+        .message.info {
+            background: #818384;
+            color: white;
+            border: 1px solid #3a3a3c;
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #b59f3b;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .game-setup {
+            background: #818384;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 500px;
+            margin: 50px auto;
+            border: 1px solid #3a3a3c;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #3a3a3c;
+            border-radius: 10px;
+            background: #121213;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #538d4e;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .connection-status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: #538d4e;
+        }
+
+        .connection-status.disconnected {
+            background: #d73027;
+        }
+
+        .connection-status.connecting {
+            background: #b59f3b;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-area {
+                grid-template-columns: 1fr;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .letter-cell {
+                width: 50px;
+                height: 50px;
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">WORDLE BATTLE ROYALE</h1>
+            <div id="connectionStatus" class="connection-status connecting">Connecting to server...</div>
+        </div>
+
+        <!-- Game Setup Screen -->
+        <div id="gameSetup" class="game-setup">
+            <h2>Join the Battle!</h2>
+            <input type="text" id="playerName" class="input-field" placeholder="Enter your name" maxlength="20">
+            <input type="text" id="gameId" class="input-field" placeholder="Game ID (optional - leave empty to create new game)" maxlength="50">
+            <div class="button-group">
+                <button class="btn" onclick="createGame()">Create Game</button>
+                <button class="btn" onclick="joinGame()">Join Game</button>
+            </div>
+        </div>
+
+        <!-- Game Lobby Screen -->
+        <div id="gameLobby" class="game-setup hidden">
+            <h2>Game Lobby</h2>
+            <p id="lobbyGameId"></p>
+            <p id="lobbyPlayerCount">Players: 0/100</p>
+            <div id="lobbyPlayerList"></div>
+            <button class="btn" id="startGameBtn" onclick="startMultiplayerGame()">Start Game</button>
+            <button class="btn" onclick="leaveGame()">Leave Game</button>
+        </div>
+
+        <!-- Main Game Area -->
+        <div id="mainGame" class="hidden">
+            <div class="game-stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="playersAlive">100</div>
+                    <div class="stat-label">Players Alive</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="yourRank">1</div>
+                    <div class="stat-label">Your Rank</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="roundNumber">1</div>
+                    <div class="stat-label">Round</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="yourScore">0</div>
+                    <div class="stat-label">Your Score</div>
+                </div>
+            </div>
+
+        <div class="timer" id="timer">Tournament starting...</div>
+
+        <div class="game-area">
+            <div class="wordle-container">
+                <div id="message" class="message info">Tournament mode: Beat your opponent in 1v1 matches to advance!</div>
+                
+                <div class="word-grid" id="wordGrid"></div>
+
+                <div class="keyboard" id="keyboard">
+                    <div class="keyboard-row">
+                        <button class="key letter" onclick="handleKey('Q')">Q</button>
+                        <button class="key letter" onclick="handleKey('W')">W</button>
+                        <button class="key letter" onclick="handleKey('E')">E</button>
+                        <button class="key letter" onclick="handleKey('R')">R</button>
+                        <button class="key letter" onclick="handleKey('T')">T</button>
+                        <button class="key letter" onclick="handleKey('Y')">Y</button>
+                        <button class="key letter" onclick="handleKey('U')">U</button>
+                        <button class="key letter" onclick="handleKey('I')">I</button>
+                        <button class="key letter" onclick="handleKey('O')">O</button>
+                        <button class="key letter" onclick="handleKey('P')">P</button>
+                    </div>
+                    <div class="keyboard-row">
+                        <button class="key letter" onclick="handleKey('A')">A</button>
+                        <button class="key letter" onclick="handleKey('S')">S</button>
+                        <button class="key letter" onclick="handleKey('D')">D</button>
+                        <button class="key letter" onclick="handleKey('F')">F</button>
+                        <button class="key letter" onclick="handleKey('G')">G</button>
+                        <button class="key letter" onclick="handleKey('H')">H</button>
+                        <button class="key letter" onclick="handleKey('J')">J</button>
+                        <button class="key letter" onclick="handleKey('K')">K</button>
+                        <button class="key letter" onclick="handleKey('L')">L</button>
+                    </div>
+                    <div class="keyboard-row">
+                        <button class="key wide" onclick="handleKey('ENTER')">ENTER</button>
+                        <button class="key letter" onclick="handleKey('Z')">Z</button>
+                        <button class="key letter" onclick="handleKey('X')">X</button>
+                        <button class="key letter" onclick="handleKey('C')">C</button>
+                        <button class="key letter" onclick="handleKey('V')">V</button>
+                        <button class="key letter" onclick="handleKey('B')">B</button>
+                        <button class="key letter" onclick="handleKey('N')">N</button>
+                        <button class="key letter" onclick="handleKey('M')">M</button>
+                        <button class="key wide" onclick="handleKey('BACKSPACE')">⌫</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <!-- Tournament Info -->
+                <div id="tournamentInfo" class="tournament-info hidden">
+                    <h3>Tournament Progress</h3>
+                    <div>Round <span id="tournamentRound">1</span></div>
+                    <div><span id="activeMatches">0</span> active matches</div>
+                </div>
+
+                <!-- Current Match Info -->
+                <div id="matchInfo" class="match-info hidden">
+                    <div class="match-timer" id="matchTimer">1:30</div>
+                    <div>VS <span id="opponentName">Opponent</span></div>
+                </div>
+
+                <!-- Opponent Progress (Tetris 99 style) -->
+                <div id="opponentSection" class="opponent-section hidden">
+                    <div class="opponent-name" id="opponentDisplayName">Opponent</div>
+                    <div class="opponent-grid" id="opponentGrid"></div>
+                </div>
+
+                <div class="players-list">
+                    <h3 class="players-title">Players Remaining</h3>
+                    <div id="playersList"></div>
+                </div>
+
+                <div class="game-controls">
+                    <button class="btn" onclick="leaveGame()">Leave Game</button>
+                </div>
+            </div>
+        </div>
+        </div> <!-- End mainGame -->
+    </div>
+
+    <script>
+        // Multiplayer game state
+        let socket = null;
+        let gameState = {
+            gameId: null,
+            playerId: null,
+            playerName: '',
+            currentGuess: '',
+            currentRow: 0,
+            gameStatus: 'waiting', // waiting, playing, ended
+            players: [],
+            playersAlive: 0,
+            yourRank: 1,
+            round: 1,
+            score: 0,
+            connected: false,
+            tournamentMode: true,
+            currentMatch: null // Will contain match info including opponent and timer
+        };
+
+        // Socket.io connection
+        function initializeSocket() {
+            // Connect to server - auto-detect environment
+            const currentHost = window.location.hostname;
+            const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+            
+            let serverUrl;
+            if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+                serverUrl = 'http://localhost:3000';
+            } else if (currentHost.includes('railway.app') || currentHost.includes('up.railway.app')) {
+                serverUrl = `${protocol}${currentHost}`;
+            } else {
+                serverUrl = `${protocol}${currentHost}:3000`;
+            }
+            console.log('Attempting to connect to:', serverUrl);
+            
+            socket = io(serverUrl, {
+                autoConnect: true,
+                reconnection: true,
+                timeout: 10000
+            });
+            
+            socket.on('connect', () => {
+                console.log('✅ Connected to server successfully!');
+                gameState.connected = true;
+                updateConnectionStatus();
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('❌ DISCONNECT EVENT - Reason:', reason);
+                console.log('❌ Had game state - GameID:', gameState.gameId, 'PlayerID:', gameState.playerId);
+                gameState.connected = false;
+                updateConnectionStatus();
+                
+                // Try to reconnect if we had a game
+                if (gameState.gameId || gameState.playerId) {
+                    console.log('❌ Connection lost, attempting to reconnect...');
+                    showMessage('Connection lost, reconnecting...', 'error');
+                    
+                    setTimeout(() => {
+                        console.log('🔄 Attempting to reconnect...');
+                        initializeSocket();
+                    }, 2000);
+                }
+            });
+
+            socket.on('gameUpdate', (serverGameState) => {
+                console.log('📡 Received game update:', serverGameState);
+                console.log('📡 Game status:', serverGameState.status);
+                console.log('📡 Players in update:', serverGameState.players?.length || 0);
+                updateGameFromServer(serverGameState);
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('🔥 Connection error:', error);
+                gameState.connected = false;
+                updateConnectionStatus();
+                showMessage('Failed to connect to server. Make sure the server is running on localhost:3000', 'error');
+            });
+
+            socket.on('error', (error) => {
+                console.error('🔥 Socket error:', error);
+                showMessage('Socket connection error: ' + error.message, 'error');
+            });
+        }
+
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connectionStatus');
+            if (gameState.connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.textContent = 'Connected to server';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.textContent = 'Disconnected from server';
+            }
+        }
+
+        // Game creation and joining functions
+        function createGame() {
+            console.log('🎮 CreateGame button clicked');
+            
+            const playerName = document.getElementById('playerName').value.trim();
+            console.log('Player name:', playerName);
+            
+            if (!playerName) {
+                console.log('❌ No player name provided');
+                showMessage('Please enter your name', 'error');
+                return;
+            }
+            
+            console.log('Socket status:', socket ? 'exists' : 'null');
+            console.log('Connection status:', gameState.connected);
+            
+            if (!socket) {
+                console.log('❌ Socket not initialized, attempting to reconnect...');
+                initializeSocket();
+                setTimeout(() => createGame(), 2000); // Retry after 2 seconds
+                return;
+            }
+            
+            if (!gameState.connected) {
+                console.log('❌ Not connected to server');
+                showMessage('Not connected to server. Check console for details.', 'error');
+                return;
+            }
+
+            console.log('🚀 Sending createGame request...');
+            gameState.playerName = playerName;
+            
+            socket.emit('createGame', { playerName: playerName }, (response) => {
+                console.log('📨 Received createGame response:', response);
+                
+                if (response && response.success) {
+                    console.log('✅ Game created successfully!');
+                    console.log('🎯 Setting gameState - GameID:', response.gameId, 'PlayerID:', response.playerId);
+                    gameState.gameId = response.gameId;
+                    gameState.playerId = response.playerId;
+                    console.log('🎯 Current gameState:', gameState);
+                    console.log('🚪 Calling showLobby()...');
+                    showLobby();
+                    console.log('🚪 showLobby() completed');
+                } else {
+                    console.log('❌ Failed to create game:', response);
+                    showMessage(response?.error || 'Failed to create game', 'error');
+                }
+            });
+        }
+
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            const gameId = document.getElementById('gameId').value.trim();
+            
+            if (!playerName) {
+                showMessage('Please enter your name', 'error');
+                return;
+            }
+            if (!gameId) {
+                showMessage('Please enter a game ID', 'error');
+                return;
+            }
+            if (!socket || !gameState.connected) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+
+            gameState.playerName = playerName;
+            socket.emit('joinGame', { gameId: gameId, playerName: playerName }, (response) => {
+                if (response.success) {
+                    gameState.gameId = gameId;
+                    gameState.playerId = response.playerId;
+                    showLobby();
+                } else {
+                    showMessage(response.error || 'Failed to join game', 'error');
+                }
+            });
+        }
+
+        function startMultiplayerGame() {
+            if (!socket || !gameState.connected) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+
+            socket.emit('startGame', {}, (response) => {
+                if (!response.success) {
+                    showMessage(response.error || 'Failed to start game', 'error');
+                }
+            });
+        }
+
+        function leaveGame() {
+            if (socket && gameState.connected) {
+                socket.disconnect();
+            }
+            
+            gameState = {
+                gameId: null,
+                playerId: null,
+                playerName: '',
+                currentWord: '',
+                currentGuess: '',
+                currentRow: 0,
+                gameStatus: 'waiting',
+                players: [],
+                playersAlive: 0,
+                yourRank: 1,
+                round: 1,
+                score: 0,
+                timer: 60,
+                eliminationInProgress: false,
+                connected: gameState.connected
+            };
+
+            showSetup();
+        }
+
+        // UI management functions
+        function showSetup() {
+            document.getElementById('gameSetup').classList.remove('hidden');
+            document.getElementById('gameLobby').classList.add('hidden');
+            document.getElementById('mainGame').classList.add('hidden');
+        }
+
+        function showLobby() {
+            console.log('🚪 showLobby() called - GameID:', gameState.gameId);
+            document.getElementById('gameSetup').classList.add('hidden');
+            document.getElementById('gameLobby').classList.remove('hidden');
+            document.getElementById('mainGame').classList.add('hidden');
+            
+            document.getElementById('lobbyGameId').textContent = `Game ID: ${gameState.gameId}`;
+            console.log('🚪 showLobby() UI updated, lobby should be visible');
+        }
+
+        function showGame() {
+            document.getElementById('gameSetup').classList.add('hidden');
+            document.getElementById('gameLobby').classList.add('hidden');
+            document.getElementById('mainGame').classList.remove('hidden');
+            
+            // Only reset if transitioning from waiting to playing (game start)
+            if (gameState.gameStatus === 'waiting') {
+                console.log('🔄 Game starting, resetting board');
+                resetGameBoard();
+            }
+        }
+        
+        function resetGameBoard() {
+            console.log('🔄 Resetting game board');
+            
+            // Clear all cells
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    if (cell) {
+                        cell.textContent = '';
+                        cell.classList.remove('filled', 'correct', 'present', 'absent', 'flipping');
+                    }
+                }
+            }
+            
+            // Reset game state
+            gameState.currentGuess = '';
+            gameState.currentRow = 0;
+            
+            // Reset keyboard
+            resetKeyboard();
+        }
+
+        function updateGameFromServer(serverGameState) {
+            console.log('🔄 updateGameFromServer called');
+            console.log('🔄 Server status:', serverGameState.status);
+            console.log('🔄 Tournament mode:', serverGameState.tournamentMode);
+            console.log('🔄 Current match:', serverGameState.currentMatch);
+            
+            gameState.round = serverGameState.round;
+            gameState.playersAlive = serverGameState.playersAlive;
+            gameState.players = serverGameState.players;
+            gameState.gameStatus = serverGameState.status;
+            gameState.currentMatch = serverGameState.currentMatch;
+            gameState.tournamentMode = serverGameState.tournamentMode;
+
+            const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
+            if (currentPlayer) {
+                gameState.score = currentPlayer.score;
+                gameState.yourRank = currentPlayer.rank;
+                
+                // Check if this is a new tournament round or new match
+                if (serverGameState.status === 'playing' && 
+                    ((currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.round > gameState.round) ||
+                     (gameState.currentMatch?.id !== serverGameState.currentMatch?.id))) {
+                    console.log('🔄 New tournament round or match detected, resetting board');
+                    resetGameBoard();
+                }
+                
+                // Only sync currentRow if we're not in the middle of typing
+                if (gameState.currentGuess === '') {
+                    gameState.currentRow = currentPlayer.currentRow || 0;
+                }
+            }
+
+            if (serverGameState.status === 'waiting') {
+                showLobby();
+                updateLobby(serverGameState);
+            } else if (serverGameState.status === 'playing') {
+                showGame();
+                updateGameDisplay();
+                updateTournamentDisplay(serverGameState);
+            } else if (serverGameState.status === 'ended') {
+                showGame();
+                updateGameDisplay();
+                showMessage('Tournament Over!', 'info');
+            }
+        }
+
+        function updateLobby(serverGameState) {
+            document.getElementById('lobbyPlayerCount').textContent = `Players: ${serverGameState.players.length}/100`;
+            
+            const lobbyPlayerList = document.getElementById('lobbyPlayerList');
+            lobbyPlayerList.innerHTML = '';
+            
+            serverGameState.players.slice(0, 10).forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.textContent = player.name;
+                playerDiv.style.padding = '5px';
+                playerDiv.style.background = player.id === gameState.playerId ? '#538d4e' : '#3a3a3c';
+                playerDiv.style.margin = '2px';
+                playerDiv.style.borderRadius = '5px';
+                lobbyPlayerList.appendChild(playerDiv);
+            });
+        }
+
+        // Game input handling
+        function handleKey(key) {
+            if (gameState.gameStatus !== 'playing' || gameState.eliminationInProgress) return;
+
+            const currentPlayer = gameState.players.find(p => p.id === gameState.playerId);
+            if (!currentPlayer || !currentPlayer.alive) return;
+
+            if (key === 'ENTER') {
+                submitGuess();
+            } else if (key === 'BACKSPACE') {
+                removeLetter();
+            } else {
+                addLetter(key);
+            }
+        }
+
+        function addLetter(letter) {
+            if (gameState.currentGuess.length < 5 && gameState.currentRow < 6) {
+                gameState.currentGuess += letter;
+                updateCurrentRow();
+            }
+        }
+
+        function removeLetter() {
+            if (gameState.currentGuess.length > 0) {
+                gameState.currentGuess = gameState.currentGuess.slice(0, -1);
+                updateCurrentRow();
+            }
+        }
+
+        function submitGuess() {
+            if (gameState.currentGuess.length !== 5) {
+                showMessage('Word must be 5 letters long!', 'error');
+                shakeRow();
+                return;
+            }
+
+            if (!socket || !gameState.connected) {
+                showMessage('Not connected to server', 'error');
+                return;
+            }
+
+            const submittedGuess = gameState.currentGuess; // Store the guess before sending
+            socket.emit('makeGuess', { guess: gameState.currentGuess }, (response) => {
+                if (response.success) {
+                    displayGuessResult(response.evaluation, submittedGuess);
+                } else {
+                    showMessage(response.error || 'Invalid word', 'error');
+                    shakeRow();
+                }
+            });
+        }
+
+        function updateKeyboardColors(guess, result) {
+            for (let i = 0; i < guess.length; i++) {
+                const letter = guess[i];
+                const letterResult = result[i];
+                
+                // Find the keyboard button for this letter
+                const keyButtons = document.querySelectorAll(`.key.letter`);
+                
+                keyButtons.forEach(button => {
+                    if (button.textContent === letter) {
+                        // Only update if it's not already a better state
+                        // Priority: correct > present > absent
+                        if (!button.classList.contains('correct') || letterResult === 'correct') {
+                            if (!button.classList.contains('present') || letterResult === 'correct' || letterResult === 'present') {
+                                button.classList.remove('correct', 'present', 'absent');
+                                button.classList.add(letterResult);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function displayGuessResult(evaluation, submittedGuess) {
+            const { result, correct, completed } = evaluation;
+            
+            // Make sure the submitted guess is displayed in the current row
+            for (let i = 0; i < 5; i++) {
+                const cell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
+                if (cell) {
+                    // Set the letter first, then apply colors
+                    cell.textContent = submittedGuess[i];
+                    cell.classList.add('filled');
+                    
+                    setTimeout(() => {
+                        cell.classList.add('flipping');
+                        // Change color at the exact midpoint of the flip animation
+                        setTimeout(() => {
+                            cell.classList.remove('correct', 'present', 'absent');
+                            cell.classList.add(result[i]);
+                        }, 300); // Exactly at 50% of 0.6s animation
+                        // Remove flipping class when animation completes
+                        setTimeout(() => {
+                            cell.classList.remove('flipping');
+                        }, 600);
+                    }, i * 100);
+                }
+            }
+
+            // Clear current guess and advance to next row
+            gameState.currentGuess = '';
+            gameState.currentRow++;
+
+            if (correct) {
+                showMessage(`Correct! Word solved!`, 'success');
+            }
+
+            // Update keyboard colors after animation
+            setTimeout(() => {
+                updateKeyboardColors(submittedGuess, result);
+            }, 800); // Wait for all animations to complete
+        }
+
+        function updateCurrentRow() {
+            for (let i = 0; i < 5; i++) {
+                const cell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
+                if (cell) {
+                    if (i < gameState.currentGuess.length) {
+                        cell.textContent = gameState.currentGuess[i];
+                        cell.classList.add('filled');
+                    } else {
+                        cell.textContent = '';
+                        cell.classList.remove('filled');
+                    }
+                }
+            }
+        }
+
+        function updateGameDisplay() {
+            document.getElementById('playersAlive').textContent = gameState.playersAlive;
+            document.getElementById('yourScore').textContent = gameState.score || 0;
+            document.getElementById('roundNumber').textContent = gameState.round;
+            document.getElementById('yourRank').textContent = gameState.yourRank;
+
+            // Update main timer (now shows match info instead of global timer)
+            if (gameState.currentMatch) {
+                const minutes = Math.floor(gameState.currentMatch.timer / 60);
+                const seconds = gameState.currentMatch.timer % 60;
+                document.getElementById('timer').textContent = `⏱️ Match time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            } else {
+                document.getElementById('timer').textContent = '⏳ Waiting for match...';
+            }
+
+            updatePlayersList();
+        }
+
+        function updateTournamentDisplay(serverGameState) {
+            // Show/hide tournament elements
+            if (gameState.tournamentMode && gameState.gameStatus === 'playing') {
+                document.getElementById('tournamentInfo').classList.remove('hidden');
+                document.getElementById('tournamentRound').textContent = gameState.round;
+                document.getElementById('activeMatches').textContent = serverGameState.activeMatches || 0;
+
+                if (gameState.currentMatch) {
+                    // Show match info
+                    document.getElementById('matchInfo').classList.remove('hidden');
+                    document.getElementById('opponentName').textContent = gameState.currentMatch.opponent.name;
+                    document.getElementById('opponentDisplayName').textContent = gameState.currentMatch.opponent.name;
+                    
+                    // Update match timer
+                    const minutes = Math.floor(gameState.currentMatch.timer / 60);
+                    const seconds = gameState.currentMatch.timer % 60;
+                    document.getElementById('matchTimer').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+                    // Show opponent section and update opponent grid
+                    document.getElementById('opponentSection').classList.remove('hidden');
+                    updateOpponentGrid(gameState.currentMatch.opponentProgress);
+                } else {
+                    // Hide match-specific elements if no current match
+                    document.getElementById('matchInfo').classList.add('hidden');
+                    document.getElementById('opponentSection').classList.add('hidden');
+                }
+            } else {
+                document.getElementById('tournamentInfo').classList.add('hidden');
+                document.getElementById('matchInfo').classList.add('hidden');
+                document.getElementById('opponentSection').classList.add('hidden');
+            }
+        }
+
+        function setupOpponentGrid() {
+            const opponentGrid = document.getElementById('opponentGrid');
+            if (!opponentGrid) return;
+            
+            opponentGrid.innerHTML = '';
+            
+            for (let i = 0; i < 6; i++) {
+                const row = document.createElement('div');
+                row.className = 'opponent-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'opponent-cell';
+                    cell.id = `opponent-cell-${i}-${j}`;
+                    row.appendChild(cell);
+                }
+                
+                opponentGrid.appendChild(row);
+            }
+        }
+
+        function updateOpponentGrid(opponentProgress) {
+            if (!opponentProgress) return;
+            
+            // Clear existing progress
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                    if (cell) {
+                        cell.classList.remove('correct', 'present', 'absent');
+                    }
+                }
+            }
+
+            // Apply opponent's progress (colors only, no letters)
+            opponentProgress.forEach(guess => {
+                const row = guess.row;
+                if (row < 6) {
+                    guess.result.forEach((result, col) => {
+                        if (col < 5) {
+                            const cell = document.getElementById(`opponent-cell-${row}-${col}`);
+                            if (cell) {
+                                cell.classList.add(result);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        function updatePlayersList() {
+            const playersList = document.getElementById('playersList');
+            if (!playersList) return;
+            
+            playersList.innerHTML = '';
+            const alivePlayers = gameState.players.filter(p => p.alive);
+            const topPlayers = alivePlayers.slice(0, 10);
+
+            topPlayers.forEach((player, index) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player-item ${player.id === gameState.playerId ? 'you' : ''}`;
+                
+                const completedIcon = player.completedCurrentWord ? ' ✅' : '';
+                playerDiv.innerHTML = `
+                    <span class="player-name">#${index + 1} ${player.name}${completedIcon}</span>
+                    <span class="player-score">${player.score}</span>
+                `;
+                playersList.appendChild(playerDiv);
+            });
+        }
+
+        function shakeRow() {
+            const currentRowEl = document.querySelector(`#wordGrid .word-row:nth-child(${gameState.currentRow + 1})`);
+            if (currentRowEl) {
+                currentRowEl.classList.add('shake');
+                setTimeout(() => {
+                    currentRowEl.classList.remove('shake');
+                }, 500);
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            if (messageEl) {
+                messageEl.textContent = text;
+                messageEl.className = `message ${type}`;
+            }
+        }
+
+        function setupGrid() {
+            const grid = document.getElementById('wordGrid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < 6; i++) {
+                const row = document.createElement('div');
+                row.className = 'word-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'letter-cell';
+                    cell.id = `cell-${i}-${j}`;
+                    row.appendChild(cell);
+                }
+                
+                grid.appendChild(row);
+            }
+            
+            // Reset keyboard colors
+            resetKeyboard();
+        }
+
+        function resetKeyboard() {
+            const keyButtons = document.querySelectorAll('.key.letter');
+            keyButtons.forEach(button => {
+                button.classList.remove('correct', 'present', 'absent');
+            });
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            initializeSocket();
+            setupGrid();
+            setupOpponentGrid();
+            showSetup();
+        });
+
+        // Physical keyboard support
+        document.addEventListener('keydown', function(e) {
+            if (gameState.gameStatus !== 'playing') return;
+
+            const key = e.key.toUpperCase();
+            if (key === 'ENTER') {
+                e.preventDefault();
+                handleKey('ENTER');
+            } else if (key === 'BACKSPACE') {
+                e.preventDefault();
+                handleKey('BACKSPACE');
+            } else if (key.match(/^[A-Z]$/)) {
+                e.preventDefault();
+                handleKey(key);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "wordle-battle-royale-server",
+  "version": "1.0.0",
+  "description": "Multiplayer Wordle Battle Royale Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "echo 'Build complete'"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.4",
+    "sqlite3": "^5.1.6",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "wordle",
+    "multiplayer",
+    "battle-royale",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "MIT"
+}

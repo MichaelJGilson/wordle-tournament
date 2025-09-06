@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.io Connection Test</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.io Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <button onclick="testCreateGame()">Test Create Game</button>
+    <div id="output"></div>
+
+    <script>
+        const socket = io('http://localhost:3000');
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+
+        socket.on('connect', () => {
+            statusEl.innerHTML = '✅ Connected to server!';
+            statusEl.style.color = 'green';
+            console.log('Connected:', socket.id);
+        });
+
+        socket.on('disconnect', () => {
+            statusEl.innerHTML = '❌ Disconnected from server';
+            statusEl.style.color = 'red';
+        });
+
+        socket.on('connect_error', (error) => {
+            statusEl.innerHTML = '🔥 Connection failed: ' + error.message;
+            statusEl.style.color = 'red';
+            console.error('Connection error:', error);
+        });
+
+        function testCreateGame() {
+            outputEl.innerHTML = 'Testing create game...';
+            
+            socket.emit('createGame', { playerName: 'TestPlayer' }, (response) => {
+                console.log('Response:', response);
+                outputEl.innerHTML = '<pre>' + JSON.stringify(response, null, 2) + '</pre>';
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+*.log
+.env
+.DS_Store
+wordle_battle.db
+*.sqlite
+*.db
+.railway/
