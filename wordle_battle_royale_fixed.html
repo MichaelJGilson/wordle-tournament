@@ -500,6 +500,46 @@
             display: none;
         }
 
+        .game-id-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+            padding: 10px;
+            background: #3a3a3c;
+            border-radius: 10px;
+        }
+
+        .game-id-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #b59f3b;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+
+        .copy-btn {
+            background: #538d4e;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: #6aaa64;
+            transform: scale(1.05);
+        }
+
+        .copy-btn.copied {
+            background: #b59f3b;
+            transform: scale(0.95);
+        }
+
         @media (max-width: 768px) {
             .game-area {
                 grid-template-columns: 1fr;
@@ -538,7 +578,11 @@
         <!-- Game Lobby Screen -->
         <div id="gameLobby" class="game-setup hidden">
             <h2>Game Lobby</h2>
-            <p id="lobbyGameId"></p>
+            <div id="gameIdContainer" class="game-id-container">
+                <span>Game ID:</span>
+                <span id="lobbyGameId" class="game-id-text">ABC123</span>
+                <button id="copyGameIdBtn" class="copy-btn" onclick="copyGameId()">📋 Copy</button>
+            </div>
             <p id="lobbyPlayerCount">Players: 0/100</p>
             <div id="lobbyPlayerList"></div>
             <button class="btn" id="startGameBtn" onclick="startMultiplayerGame()">Start Game</button>
@@ -874,8 +918,49 @@
             document.getElementById('gameLobby').classList.remove('hidden');
             document.getElementById('mainGame').classList.add('hidden');
             
-            document.getElementById('lobbyGameId').textContent = `Game ID: ${gameState.gameId}`;
+            document.getElementById('lobbyGameId').textContent = gameState.gameId;
             console.log('🚪 showLobby() UI updated, lobby should be visible');
+        }
+
+        function copyGameId() {
+            const gameId = gameState.gameId;
+            if (!gameId) return;
+            
+            navigator.clipboard.writeText(gameId).then(() => {
+                const button = document.getElementById('copyGameIdBtn');
+                const originalText = button.textContent;
+                
+                // Show feedback
+                button.textContent = '✅ Copied!';
+                button.classList.add('copied');
+                
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+                
+                console.log('Game ID copied:', gameId);
+            }).catch(err => {
+                console.error('Failed to copy game ID:', err);
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = gameId;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                const button = document.getElementById('copyGameIdBtn');
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.classList.add('copied');
+                
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            });
         }
 
         function showGame() {

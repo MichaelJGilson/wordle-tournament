@@ -4,6 +4,16 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
+
+// Generate short, user-friendly game IDs
+function generateShortId(length = 6) {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return result;
+}
 const fs = require('fs');
 const path = require('path');
 
@@ -594,7 +604,7 @@ io.on('connection', (socket) => {
                 return;
             }
             
-            const gameId = uuidv4();
+            const gameId = generateShortId(6); // Generate 6-character game ID
             const game = new Game(gameId, maxPlayers);
             
             activeGames.set(gameId, game);
