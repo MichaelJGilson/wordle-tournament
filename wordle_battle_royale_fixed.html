@@ -304,6 +304,41 @@
             text-align: center;
         }
 
+        .countdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            color: white;
+        }
+
+        .countdown-title {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #538d4e;
+        }
+
+        .countdown-number {
+            font-size: 8rem;
+            font-weight: bold;
+            color: #b59f3b;
+            animation: countdownPulse 1s ease-in-out;
+        }
+
+        @keyframes countdownPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
         .players-list {
             margin-bottom: 30px;
         }
@@ -588,7 +623,7 @@
                 <!-- Current Match Info -->
                 <div id="matchInfo" class="match-info hidden">
                     <div class="match-timer" id="matchTimer">1:30</div>
-                    <div>You VS <span id="opponentName">Opponent</span></div>
+                    <div><span id="yourName">You</span> VS <span id="opponentName">Opponent</span></div>
                 </div>
 
                 <!-- Opponent Progress (Tetris 99 style) -->
@@ -892,11 +927,14 @@
             console.log('🔄 Tournament mode:', serverGameState.tournamentMode);
             console.log('🔄 Current match:', serverGameState.currentMatch);
             
-            gameState.round = serverGameState.round;
+            // Store previous state for comparison
+            const previousRound = gameState.round;
+            const previousMatchId = gameState.currentMatch?.id;
+            
+            // Update state
             gameState.playersAlive = serverGameState.playersAlive;
             gameState.players = serverGameState.players;
             gameState.gameStatus = serverGameState.status;
-            gameState.currentMatch = serverGameState.currentMatch;
             gameState.tournamentMode = serverGameState.tournamentMode;
 
             const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
@@ -904,22 +942,35 @@
                 gameState.score = currentPlayer.score;
                 gameState.yourRank = currentPlayer.rank;
                 
-                // Check if this is a new tournament round or new match
-                if (serverGameState.status === 'playing' && 
-                    ((serverGameState.round > gameState.round) ||
-                     (gameState.currentMatch?.id !== serverGameState.currentMatch?.id && serverGameState.currentMatch?.id))) {
-                    console.log('🔄 New tournament round or match detected, resetting board');
-                    console.log('🔄 Old match ID:', gameState.currentMatch?.id);
-                    console.log('🔄 New match ID:', serverGameState.currentMatch?.id);
-                    console.log('🔄 Round changed from', gameState.round, 'to', serverGameState.round);
-                    resetGameBoard();
-                }
-                
                 // Only sync currentRow if we're not in the middle of typing
                 if (gameState.currentGuess === '') {
                     gameState.currentRow = currentPlayer.currentRow || 0;
                 }
             }
+
+            // Check for new round or new match BEFORE updating the state
+            const isNewRound = serverGameState.round > previousRound;
+            const isNewMatch = previousMatchId && serverGameState.currentMatch?.id && 
+                              previousMatchId !== serverGameState.currentMatch.id;
+            
+            if (serverGameState.status === 'playing' && (isNewRound || isNewMatch)) {
+                console.log('🔄 RESET TRIGGERED - New tournament round or match detected');
+                console.log('🔄 Old round:', previousRound, '-> New round:', serverGameState.round);
+                console.log('🔄 Old match ID:', previousMatchId);
+                console.log('🔄 New match ID:', serverGameState.currentMatch?.id);
+                console.log('🔄 Is new round:', isNewRound);
+                console.log('🔄 Is new match:', isNewMatch);
+                
+                if (isNewRound) {
+                    showRoundCountdown(serverGameState.round);
+                }
+                
+                resetGameBoard();
+            }
+            
+            // Update state after reset check
+            gameState.round = serverGameState.round;
+            gameState.currentMatch = serverGameState.currentMatch;
 
             if (serverGameState.status === 'waiting') {
                 showLobby();
@@ -1083,6 +1134,46 @@
             }
         }
 
+        function showRoundCountdown(roundNumber) {
+            console.log('🔥 Starting countdown for round', roundNumber);
+            
+            // Create countdown overlay
+            const overlay = document.createElement('div');
+            overlay.className = 'countdown-overlay';
+            overlay.id = 'countdownOverlay';
+            
+            const title = document.createElement('div');
+            title.className = 'countdown-title';
+            title.textContent = `Round ${roundNumber} Starting...`;
+            
+            const numberDisplay = document.createElement('div');
+            numberDisplay.className = 'countdown-number';
+            numberDisplay.textContent = '5';
+            
+            overlay.appendChild(title);
+            overlay.appendChild(numberDisplay);
+            document.body.appendChild(overlay);
+            
+            let count = 5;
+            const countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    numberDisplay.textContent = count;
+                    // Restart animation
+                    numberDisplay.style.animation = 'none';
+                    numberDisplay.offsetHeight; // Trigger reflow
+                    numberDisplay.style.animation = 'countdownPulse 1s ease-in-out';
+                } else {
+                    numberDisplay.textContent = 'GO!';
+                    numberDisplay.style.color = '#538d4e';
+                    setTimeout(() => {
+                        document.body.removeChild(overlay);
+                    }, 1000);
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+        }
+
         function updateGameDisplay() {
             document.getElementById('playersAlive').textContent = gameState.playersAlive;
             document.getElementById('yourScore').textContent = gameState.score || 0;
@@ -1111,6 +1202,7 @@
                 if (gameState.currentMatch) {
                     // Show match info
                     document.getElementById('matchInfo').classList.remove('hidden');
+                    document.getElementById('yourName').textContent = gameState.playerName;
                     document.getElementById('opponentName').textContent = gameState.currentMatch.opponent.name;
                     document.getElementById('opponentDisplayName').textContent = gameState.currentMatch.opponent.name;
                     
