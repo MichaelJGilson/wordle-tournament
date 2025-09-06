@@ -853,7 +853,7 @@ app.get('/api/game/:gameId', (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-    console.log(`Wordle Battle Royale server running on port ${PORT}`);
+    console.log(`Word Royale server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     if (process.env.RAILWAY_ENVIRONMENT) {
         console.log(`Railway deployment successful!`);

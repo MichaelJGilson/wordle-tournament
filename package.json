@@ -1,7 +1,7 @@
 {
-  "name": "wordle-battle-royale-server",
+  "name": "word-royale-server",
   "version": "1.0.0",
-  "description": "Multiplayer Wordle Battle Royale Server",
+  "description": "Multiplayer Word Royale Tournament Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -22,9 +22,9 @@
     "nodemon": "^3.0.2"
   },
   "keywords": [
-    "wordle",
+    "word-game",
     "multiplayer",
-    "battle-royale",
+    "tournament",
     "socket.io"
   ],
   "author": "",
