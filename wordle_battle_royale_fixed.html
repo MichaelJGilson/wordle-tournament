@@ -637,6 +637,21 @@
                 </div>
             </div>
 
+        <!-- Series Score for Public Matches -->
+        <div id="seriesScore" class="game-stats hidden" style="margin-bottom: 20px; justify-content: center;">
+            <div class="stat-card" style="background: #538d4e;">
+                <div class="stat-number" id="player1Wins">0</div>
+                <div class="stat-label" id="player1Name">Player 1</div>
+            </div>
+            <div style="display: flex; align-items: center; color: white; font-size: 1.5rem; margin: 0 20px;">
+                Best of 5
+            </div>
+            <div class="stat-card" style="background: #b59f3b;">
+                <div class="stat-number" id="player2Wins">0</div>
+                <div class="stat-label" id="player2Name">Player 2</div>
+            </div>
+        </div>
+
         <div class="timer" id="timer">Tournament starting...</div>
 
         <div class="game-area">
@@ -1556,8 +1571,40 @@
             document.getElementById('roundNumber').textContent = gameState.round;
             document.getElementById('yourRank').textContent = gameState.yourRank;
 
+            // Show/hide and update series score for public matches
+            updateSeriesScore();
+
             updateTimerDisplay();
             updatePlayersList();
+        }
+
+        function updateSeriesScore() {
+            const seriesScoreEl = document.getElementById('seriesScore');
+            
+            if (gameState.isPublicMatch && gameState.seriesScore) {
+                seriesScoreEl.classList.remove('hidden');
+                
+                const { player1, player2 } = gameState.seriesScore;
+                
+                document.getElementById('player1Name').textContent = player1.name;
+                document.getElementById('player1Wins').textContent = player1.wins;
+                document.getElementById('player2Name').textContent = player2.name;
+                document.getElementById('player2Wins').textContent = player2.wins;
+                
+                // Highlight current player
+                const player1Card = document.getElementById('player1Name').parentElement;
+                const player2Card = document.getElementById('player2Name').parentElement;
+                
+                if (player1.id === gameState.playerId) {
+                    player1Card.style.background = '#538d4e'; // Green for current player
+                    player2Card.style.background = '#818384'; // Gray for opponent
+                } else {
+                    player2Card.style.background = '#538d4e'; // Green for current player
+                    player1Card.style.background = '#818384'; // Gray for opponent
+                }
+            } else {
+                seriesScoreEl.classList.add('hidden');
+            }
         }
 
         function updateTournamentDisplay(serverGameState) {

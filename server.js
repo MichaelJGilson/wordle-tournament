@@ -500,20 +500,25 @@ class Match {
         db.run(`UPDATE matches SET winner_id = ?, status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
             [this.winner, this.id]);
 
-        // Mark loser as eliminated
+        // Handle elimination differently for public vs tournament matches
         const loserId = this.winner === this.player1.id ? this.player2.id : this.player1.id;
         const game = activeGames.get(this.gameId);
         if (game) {
             const loser = game.players.get(loserId);
-            if (loser) {
+            const winner = game.players.get(this.winner);
+            
+            // Only eliminate loser in traditional tournament mode, not in public matches
+            if (loser && !game.isPublicMatch) {
                 loser.alive = false;
                 loser.rank = game.players.size - Array.from(game.players.values()).filter(p => p.alive).length + 1;
             }
+            
             // Award points to winner
-            const winner = game.players.get(this.winner);
             if (winner) {
                 winner.score += 100; // Tournament round win bonus
             }
+            
+            console.log(`🎯 Match completed: ${this.winner === this.player1.id ? this.player1.name : this.player2.name} wins! Public match: ${game.isPublicMatch ? 'Yes' : 'No'}`);
         }
     }
 
@@ -665,7 +670,46 @@ class Game {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         console.log(`Round ${this.round} completed. ${alivePlayers.length} players remaining`);
 
-        if (alivePlayers.length <= 1) {
+        // For public matches (2 players), implement best-of-5 system
+        if (this.isPublicMatch && this.players.size === 2) {
+            const maxRounds = 5;
+            const player1 = Array.from(this.players.values())[0];
+            const player2 = Array.from(this.players.values())[1];
+            
+            // Count wins for each player
+            let player1Wins = 0;
+            let player2Wins = 0;
+            
+            this.bracketHistory.forEach(roundData => {
+                if (roundData.matches && roundData.matches.length > 0) {
+                    const match = roundData.matches[0]; // Should only be one match per round in 2-player game
+                    if (match.winner === player1.id) player1Wins++;
+                    if (match.winner === player2.id) player2Wins++;
+                }
+            });
+            
+            // Add current round's winner
+            const currentMatch = this.roundMatches[0];
+            if (currentMatch && currentMatch.winner === player1.id) player1Wins++;
+            if (currentMatch && currentMatch.winner === player2.id) player2Wins++;
+            
+            console.log(`📊 Public match score: ${player1.name} ${player1Wins} - ${player2Wins} ${player2.name}`);
+            
+            // Check if someone won (first to 3 wins, or after 5 rounds)
+            const winsNeeded = Math.ceil(maxRounds / 2); // 3 wins needed out of 5
+            if (player1Wins >= winsNeeded || player2Wins >= winsNeeded || this.round >= maxRounds) {
+                console.log(`🏆 Public match concluded after ${this.round} rounds`);
+                this.endGame();
+                return;
+            }
+            
+            // Reset both players to alive for next round (no elimination in public matches)
+            player1.alive = true;
+            player2.alive = true;
+            
+            console.log(`🔄 Public match continuing to round ${this.round + 1}`);
+        } else if (alivePlayers.length <= 1) {
+            // Traditional tournament elimination logic
             this.endGame();
             return;
         }
@@ -806,8 +850,34 @@ class Game {
             players: allPlayers,
             tournamentMode: this.tournamentMode,
             totalMatches: this.roundMatches.length,
-            activeMatches: this.roundMatches.filter(m => m.status === 'active').length
+            activeMatches: this.roundMatches.filter(m => m.status === 'active').length,
+            isPublicMatch: this.isPublicMatch || false
         };
+
+        // Add series score for public matches
+        if (this.isPublicMatch && this.players.size === 2) {
+            const player1 = Array.from(this.players.values())[0];
+            const player2 = Array.from(this.players.values())[1];
+            
+            // Count wins for each player from match history
+            let player1Wins = 0;
+            let player2Wins = 0;
+            
+            this.bracketHistory.forEach(roundData => {
+                if (roundData.matches && roundData.matches.length > 0) {
+                    const match = roundData.matches[0];
+                    if (match.winner === player1.id) player1Wins++;
+                    if (match.winner === player2.id) player2Wins++;
+                }
+            });
+            
+            gameState.seriesScore = {
+                player1: { id: player1.id, name: player1.name, wins: player1Wins },
+                player2: { id: player2.id, name: player2.name, wins: player2Wins },
+                maxRounds: 5,
+                winsNeeded: 3
+            };
+        }
 
         // Add match-specific information for requesting player
         if (requestingPlayerId && this.status === 'playing') {
