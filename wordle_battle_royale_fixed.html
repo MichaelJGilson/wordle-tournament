@@ -706,7 +706,9 @@
             score: 0,
             connected: false,
             tournamentMode: true,
-            currentMatch: null // Will contain match info including opponent and timer
+            currentMatch: null, // Will contain match info including opponent and timer
+            clientTimer: 0, // Client-side timer for real-time countdown
+            timerInterval: null // Client timer interval
         };
 
         // Socket.io connection
@@ -884,6 +886,9 @@
                 socket.disconnect();
             }
             
+            // Stop any running timers
+            stopClientTimer();
+            
             gameState = {
                 gameId: null,
                 playerId: null,
@@ -1004,6 +1009,9 @@
             setupOpponentGrid();
             
             console.log('🔄 Board reset complete');
+            
+            // Clear any point messages
+            showMessage('New match starting!', 'info');
         }
 
         function forceCompleteReset() {
@@ -1053,6 +1061,8 @@
             setTimeout(() => {
                 console.log('🔥 Force reset complete - board should be completely clean');
                 console.log('🔥 Final state check - currentRow:', gameState.currentRow, 'currentGuess:', gameState.currentGuess);
+                // Clear any leftover messages and show fresh start message
+                showMessage('New tournament round starting!', 'info');
                 // Double-check current row display
                 updateCurrentRow();
             }, 100);
@@ -1334,6 +1344,50 @@
             }, 1000);
         }
 
+        function startClientTimer() {
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+            }
+
+            if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+                gameState.clientTimer = gameState.currentMatch.timer;
+                
+                gameState.timerInterval = setInterval(() => {
+                    gameState.clientTimer = Math.max(0, gameState.clientTimer - 1);
+                    updateTimerDisplay();
+                    
+                    if (gameState.clientTimer <= 0) {
+                        clearInterval(gameState.timerInterval);
+                    }
+                }, 1000);
+            }
+        }
+
+        function stopClientTimer() {
+            if (gameState.timerInterval) {
+                clearInterval(gameState.timerInterval);
+                gameState.timerInterval = null;
+            }
+        }
+
+        function updateTimerDisplay() {
+            const timer = gameState.clientTimer || 0;
+            const minutes = Math.floor(timer / 60);
+            const seconds = timer % 60;
+            
+            if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+                document.getElementById('timer').textContent = `⏱️ Match time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Also update the match timer in sidebar
+                const matchTimer = document.getElementById('matchTimer');
+                if (matchTimer) {
+                    matchTimer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+            } else {
+                document.getElementById('timer').textContent = '⏳ Waiting for match...';
+            }
+        }
+
         function updateGameDisplay() {
             document.getElementById('playersAlive').textContent = gameState.playersAlive;
             
@@ -1349,15 +1403,7 @@
             document.getElementById('roundNumber').textContent = gameState.round;
             document.getElementById('yourRank').textContent = gameState.yourRank;
 
-            // Update main timer (now shows match info instead of global timer)
-            if (gameState.currentMatch) {
-                const minutes = Math.floor(gameState.currentMatch.timer / 60);
-                const seconds = gameState.currentMatch.timer % 60;
-                document.getElementById('timer').textContent = `⏱️ Match time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
-            } else {
-                document.getElementById('timer').textContent = '⏳ Waiting for match...';
-            }
-
+            updateTimerDisplay();
             updatePlayersList();
         }
 
@@ -1375,10 +1421,11 @@
                     document.getElementById('opponentName').textContent = gameState.currentMatch.opponent.name;
                     document.getElementById('opponentDisplayName').textContent = gameState.currentMatch.opponent.name;
                     
-                    // Update match timer
-                    const minutes = Math.floor(gameState.currentMatch.timer / 60);
-                    const seconds = gameState.currentMatch.timer % 60;
-                    document.getElementById('matchTimer').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    // Start or sync client timer
+                    if (!gameState.timerInterval || Math.abs(gameState.clientTimer - gameState.currentMatch.timer) > 2) {
+                        console.log('🕐 Starting/syncing client timer:', gameState.currentMatch.timer);
+                        startClientTimer();
+                    }
 
                     // Show opponent section and update opponent grid
                     document.getElementById('opponentSection').classList.remove('hidden');
@@ -1387,6 +1434,7 @@
                     // Hide match-specific elements if no current match
                     document.getElementById('matchInfo').classList.add('hidden');
                     document.getElementById('opponentSection').classList.add('hidden');
+                    stopClientTimer();
                 }
             } else {
                 document.getElementById('tournamentInfo').classList.add('hidden');
