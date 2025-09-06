@@ -525,7 +525,7 @@ class Game {
             player.currentRow = matchProgress.currentRow;
             player.completedCurrentWord = matchProgress.completed;
             
-            // Update player's score with match progress
+            // Update player's score with match progress (live update)
             player.matchScore = matchProgress.score;
             
             // If match is completed, add match score to total
@@ -534,6 +534,9 @@ class Game {
                 if (currentMatch.winner === playerId) {
                     player.score += 100; // Tournament win bonus
                 }
+            } else {
+                // During active match, show live match score
+                player.currentMatchScore = matchProgress.score;
             }
             
             // Return the result with the updated player information
@@ -546,8 +549,8 @@ class Game {
                 earlyBonus: result.earlyBonus,
                 player: {
                     currentRow: player.currentRow,
-                    score: player.matchScore || 0, // Show match score during match
-                    totalScore: player.score || 0, // Show tournament total
+                    currentMatchScore: player.currentMatchScore || 0, // Live match score
+                    totalTournamentScore: player.score || 0, // Tournament total
                     completedCurrentWord: player.completedCurrentWord
                 }
             };
@@ -596,6 +599,7 @@ class Game {
                 id: player.id,
                 name: player.name,
                 score: player.score || 0,
+                currentMatchScore: player.currentMatchScore || 0,
                 alive: player.alive,
                 rank: player.alive ? index + 1 : player.rank,
                 currentRow: player.currentRow || 0,

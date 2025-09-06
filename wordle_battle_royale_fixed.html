@@ -606,7 +606,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" id="yourScore">0</div>
-                    <div class="stat-label">Your Score</div>
+                    <div class="stat-label" id="scoreLabel">Match Score</div>
                 </div>
             </div>
 
@@ -1076,7 +1076,8 @@
 
             const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
             if (currentPlayer) {
-                gameState.score = currentPlayer.score;
+                gameState.score = currentPlayer.score; // Tournament total
+                gameState.currentMatchScore = currentPlayer.currentMatchScore || 0; // Live match score
                 gameState.yourRank = currentPlayer.rank;
                 
                 // Always sync currentRow from server for new matches/rounds
@@ -1335,7 +1336,16 @@
 
         function updateGameDisplay() {
             document.getElementById('playersAlive').textContent = gameState.playersAlive;
-            document.getElementById('yourScore').textContent = gameState.score || 0;
+            
+            // Show live match score during active matches, tournament total otherwise
+            if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+                document.getElementById('yourScore').textContent = gameState.currentMatchScore || 0;
+                document.getElementById('scoreLabel').textContent = 'Match Score';
+            } else {
+                document.getElementById('yourScore').textContent = gameState.score || 0;
+                document.getElementById('scoreLabel').textContent = 'Total Score';
+            }
+            
             document.getElementById('roundNumber').textContent = gameState.round;
             document.getElementById('yourRank').textContent = gameState.yourRank;
 
@@ -1448,9 +1458,14 @@
                 playerDiv.className = `player-item ${player.id === gameState.playerId ? 'you' : ''}`;
                 
                 const completedIcon = player.completedCurrentWord ? ' ✅' : '';
+                // Show match score during active games, tournament total otherwise
+                const displayScore = gameState.gameStatus === 'playing' && gameState.currentMatch 
+                    ? player.currentMatchScore || 0 
+                    : player.score || 0;
+                    
                 playerDiv.innerHTML = `
                     <span class="player-name">#${index + 1} ${player.name}${completedIcon}</span>
-                    <span class="player-score">${player.score}</span>
+                    <span class="player-score">${displayScore}</span>
                 `;
                 playersList.appendChild(playerDiv);
             });
