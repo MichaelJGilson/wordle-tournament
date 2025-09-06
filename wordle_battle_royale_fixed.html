@@ -1278,9 +1278,11 @@
 
             // Show scoring feedback
             if (correct) {
-                showMessage(`🎉 Correct! +${totalScore} points total (${earlyBonus} early bonus!)`, 'success');
+                const roundText = gameState.round > 1 ? ` (Round ${gameState.round} bonus!)` : '';
+                showMessage(`🎉 Correct! +${totalScore} points total${roundText}`, 'success');
             } else if (pointsEarned > 0) {
-                showMessage(`+${pointsEarned} points! Total: ${totalScore}`, 'info');
+                const roundText = gameState.round > 1 ? ` (${gameState.round}x multiplier)` : '';
+                showMessage(`+${pointsEarned} points${roundText}! Total: ${totalScore}`, 'info');
             }
 
             // Update keyboard colors after animation

@@ -145,12 +145,23 @@ loadWordLists();
 const activeGames = new Map();
 const playerSockets = new Map();
 
+// Calculate round-based score multiplier
+function getRoundMultiplier(round) {
+    // Round 1: 1x, Round 2: 1.5x, Round 3: 2x, Round 4+: 2.5x, Final: 3x
+    if (round === 1) return 1.0;
+    if (round === 2) return 1.5;
+    if (round === 3) return 2.0;
+    if (round >= 7) return 3.0; // Finals (when only 2 players left)
+    return 2.5; // Semi-finals and quarters
+}
+
 // Match class for 1v1 tournament matches
 class Match {
     constructor(id, gameId, round, player1, player2) {
         this.id = id;
         this.gameId = gameId;
         this.round = round;
+        this.roundMultiplier = getRoundMultiplier(round);
         this.player1 = player1;
         this.player2 = player2;
         this.word = this.getRandomWord();
@@ -228,31 +239,37 @@ class Match {
         playerProgress.guesses.push({ guess, result, row: playerProgress.currentRow - 1 });
 
         // Calculate points for this guess
-        let guessPoints = 0;
+        let basePoints = 0;
         for (let i = 0; i < 5; i++) {
             const letter = guess[i];
             if (result[i] === 'correct') {
                 // 10 points for correct position (green)
                 if (!playerProgress.correctLetters.has(letter)) {
-                    guessPoints += 10;
+                    basePoints += 10;
                     playerProgress.correctLetters.add(letter);
                 }
             } else if (result[i] === 'present') {
                 // 5 points for correct letter, wrong position (yellow)
                 if (!playerProgress.correctLetters.has(letter)) {
-                    guessPoints += 5;
+                    basePoints += 5;
                     playerProgress.correctLetters.add(letter);
                 }
             }
         }
 
+        // Apply round multiplier
+        const guessPoints = Math.round(basePoints * this.roundMultiplier);
         playerProgress.score += guessPoints;
+
+        console.log(`📊 Round ${this.round} scoring - Base: ${basePoints}, Multiplier: ${this.roundMultiplier}x, Final: ${guessPoints}`);
 
         if (guess === target) {
             playerProgress.completed = true;
-            // Early completion bonus: 50 - (10 * number of guesses used)
-            const earlyBonus = Math.max(50 - (playerProgress.currentRow * 10), 10);
+            // Early completion bonus: 50 - (10 * number of guesses used), also multiplied
+            const baseBonus = Math.max(50 - (playerProgress.currentRow * 10), 10);
+            const earlyBonus = Math.round(baseBonus * this.roundMultiplier);
             playerProgress.score += earlyBonus;
+            console.log(`🎉 Completion bonus - Base: ${baseBonus}, Multiplied: ${earlyBonus}`);
             this.winner = playerId;
             this.resolveMatch();
         }
@@ -284,22 +301,41 @@ class Match {
             const p1Progress = this.playerProgress[this.player1.id];
             const p2Progress = this.playerProgress[this.player2.id];
 
-            if (p1Progress.completed && !p2Progress.completed) {
+            console.log(`🏆 Determining winner - P1 score: ${p1Progress.score}, P2 score: ${p2Progress.score}`);
+            console.log(`🏆 P1 completed: ${p1Progress.completed}, P2 completed: ${p2Progress.completed}`);
+
+            // Primary: Winner is determined by highest score
+            if (p1Progress.score > p2Progress.score) {
                 this.winner = this.player1.id;
-            } else if (p2Progress.completed && !p1Progress.completed) {
+                console.log(`🏆 Player 1 wins by score: ${p1Progress.score} vs ${p2Progress.score}`);
+            } else if (p2Progress.score > p1Progress.score) {
                 this.winner = this.player2.id;
-            } else if (p1Progress.completed && p2Progress.completed) {
-                // Both completed, winner is who finished faster (fewer rows)
-                this.winner = p1Progress.currentRow <= p2Progress.currentRow ? this.player1.id : this.player2.id;
+                console.log(`🏆 Player 2 wins by score: ${p2Progress.score} vs ${p1Progress.score}`);
             } else {
-                // Neither completed, winner is who made more progress
-                if (p1Progress.currentRow > p2Progress.currentRow) {
+                // Tie-breaker: If scores are equal, check completion status
+                if (p1Progress.completed && !p2Progress.completed) {
                     this.winner = this.player1.id;
-                } else if (p2Progress.currentRow > p1Progress.currentRow) {
+                    console.log(`🏆 Player 1 wins by completion (tied score)`);
+                } else if (p2Progress.completed && !p1Progress.completed) {
                     this.winner = this.player2.id;
+                    console.log(`🏆 Player 2 wins by completion (tied score)`);
+                } else if (p1Progress.completed && p2Progress.completed) {
+                    // Both completed with same score, winner by speed (fewer rows)
+                    this.winner = p1Progress.currentRow <= p2Progress.currentRow ? this.player1.id : this.player2.id;
+                    console.log(`🏆 Both completed, winner by speed`);
                 } else {
-                    // Same progress, random winner
-                    this.winner = Math.random() < 0.5 ? this.player1.id : this.player2.id;
+                    // Neither completed, same score - winner by progress (more rows attempted)
+                    if (p1Progress.currentRow > p2Progress.currentRow) {
+                        this.winner = this.player1.id;
+                        console.log(`🏆 Player 1 wins by progress`);
+                    } else if (p2Progress.currentRow > p1Progress.currentRow) {
+                        this.winner = this.player2.id;
+                        console.log(`🏆 Player 2 wins by progress`);
+                    } else {
+                        // Completely tied - random winner
+                        this.winner = Math.random() < 0.5 ? this.player1.id : this.player2.id;
+                        console.log(`🏆 Completely tied, random winner`);
+                    }
                 }
             }
         }
