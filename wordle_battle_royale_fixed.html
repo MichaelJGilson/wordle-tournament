@@ -588,7 +588,7 @@
                 <!-- Current Match Info -->
                 <div id="matchInfo" class="match-info hidden">
                     <div class="match-timer" id="matchTimer">1:30</div>
-                    <div>VS <span id="opponentName">Opponent</span></div>
+                    <div>You VS <span id="opponentName">Opponent</span></div>
                 </div>
 
                 <!-- Opponent Progress (Tetris 99 style) -->
@@ -875,6 +875,15 @@
             
             // Reset keyboard
             resetKeyboard();
+            
+            // Clear any shake animations
+            const rows = document.querySelectorAll('.word-row');
+            rows.forEach(row => row.classList.remove('shake'));
+            
+            // Reset opponent grid too
+            setupOpponentGrid();
+            
+            console.log('🔄 Board reset complete');
         }
 
         function updateGameFromServer(serverGameState) {
@@ -897,9 +906,12 @@
                 
                 // Check if this is a new tournament round or new match
                 if (serverGameState.status === 'playing' && 
-                    ((currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.round > gameState.round) ||
-                     (gameState.currentMatch?.id !== serverGameState.currentMatch?.id))) {
+                    ((serverGameState.round > gameState.round) ||
+                     (gameState.currentMatch?.id !== serverGameState.currentMatch?.id && serverGameState.currentMatch?.id))) {
                     console.log('🔄 New tournament round or match detected, resetting board');
+                    console.log('🔄 Old match ID:', gameState.currentMatch?.id);
+                    console.log('🔄 New match ID:', serverGameState.currentMatch?.id);
+                    console.log('🔄 Round changed from', gameState.round, 'to', serverGameState.round);
                     resetGameBoard();
                 }
                 
