@@ -1052,6 +1052,7 @@
             // Clear any pending timeouts/intervals that might cause issues
             setTimeout(() => {
                 console.log('🔥 Force reset complete - board should be completely clean');
+                console.log('🔥 Final state check - currentRow:', gameState.currentRow, 'currentGuess:', gameState.currentGuess);
                 // Double-check current row display
                 updateCurrentRow();
             }, 100);
@@ -1078,9 +1079,14 @@
                 gameState.score = currentPlayer.score;
                 gameState.yourRank = currentPlayer.rank;
                 
-                // Only sync currentRow if we're not in the middle of typing
-                if (gameState.currentGuess === '') {
-                    gameState.currentRow = currentPlayer.currentRow || 0;
+                // Always sync currentRow from server for new matches/rounds
+                const serverRow = currentPlayer.currentRow || 0;
+                if (serverRow !== gameState.currentRow) {
+                    console.log('🔄 Row sync: client', gameState.currentRow, '-> server', serverRow);
+                    gameState.currentRow = serverRow;
+                    if (gameState.currentGuess === '') {
+                        updateCurrentRow();
+                    }
                 }
             }
 
@@ -1107,7 +1113,15 @@
             // Also check if player's currentRow is 0 but we have board content (desync fix)
             if (currentPlayer && currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.status === 'playing') {
                 console.log('🔄 DESYNC DETECTED - Server says row 0, client has', gameState.currentRow);
+                console.log('🔄 Forcing complete reset due to row desync');
                 forceCompleteReset();
+            }
+            
+            // Extra check: if server says we're at row 0, make sure client is too
+            if (currentPlayer && currentPlayer.currentRow === 0 && serverGameState.status === 'playing') {
+                console.log('🔄 Server confirms currentRow = 0, ensuring client sync');
+                gameState.currentRow = 0;
+                gameState.currentGuess = '';
             }
             
             // Update state after reset check

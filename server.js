@@ -416,6 +416,15 @@ class Game {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         console.log(`Creating tournament matches for ${alivePlayers.length} players in round ${this.round}`);
         
+        // Reset all alive players for new tournament round
+        alivePlayers.forEach(player => {
+            player.currentRow = 0;
+            player.currentGuess = '';
+            player.completedCurrentWord = false;
+            player.matchScore = 0;
+            console.log(`🔄 Reset player ${player.name}: currentRow=${player.currentRow}`);
+        });
+        
         // Shuffle players for random matchmaking
         for (let i = alivePlayers.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
