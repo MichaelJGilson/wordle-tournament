@@ -1006,6 +1006,57 @@
             console.log('🔄 Board reset complete');
         }
 
+        function forceCompleteReset() {
+            console.log('🔥 FORCE COMPLETE RESET - Aggressive board clearing');
+            
+            // Extra aggressive cell clearing
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    if (cell) {
+                        cell.textContent = '';
+                        cell.innerHTML = '';
+                        cell.className = 'letter-cell'; // Reset to base class only
+                        cell.style.animation = '';
+                        cell.style.transform = '';
+                    }
+                }
+            }
+            
+            // Force reset game state
+            gameState.currentGuess = '';
+            gameState.currentRow = 0;
+            
+            // Aggressive keyboard reset
+            const keyButtons = document.querySelectorAll('.key.letter');
+            keyButtons.forEach(button => {
+                button.className = 'key letter'; // Reset to base classes only
+                button.style.background = '';
+                button.style.color = '';
+            });
+            
+            // Clear all animations and transitions
+            const rows = document.querySelectorAll('.word-row');
+            rows.forEach(row => {
+                row.className = 'word-row'; // Reset to base class
+                row.style.animation = '';
+            });
+            
+            // Force recreation of opponent grid
+            const opponentGrid = document.getElementById('opponentGrid');
+            if (opponentGrid) {
+                opponentGrid.innerHTML = '';
+                setupOpponentGrid();
+            }
+            
+            // Clear any pending timeouts/intervals that might cause issues
+            setTimeout(() => {
+                console.log('🔥 Force reset complete - board should be completely clean');
+                // Double-check current row display
+                updateCurrentRow();
+            }, 100);
+        }
+
         function updateGameFromServer(serverGameState) {
             console.log('🔄 updateGameFromServer called');
             console.log('🔄 Server status:', serverGameState.status);
@@ -1050,7 +1101,13 @@
                     showRoundCountdown(serverGameState.round);
                 }
                 
-                resetGameBoard();
+                forceCompleteReset();
+            }
+            
+            // Also check if player's currentRow is 0 but we have board content (desync fix)
+            if (currentPlayer && currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.status === 'playing') {
+                console.log('🔄 DESYNC DETECTED - Server says row 0, client has', gameState.currentRow);
+                forceCompleteReset();
             }
             
             // Update state after reset check
@@ -1165,7 +1222,7 @@
         }
 
         function displayGuessResult(evaluation, submittedGuess) {
-            const { result, correct, completed } = evaluation;
+            const { result, correct, completed, pointsEarned, totalScore, earlyBonus } = evaluation;
             
             // Make sure the submitted guess is displayed in the current row
             for (let i = 0; i < 5; i++) {
@@ -1194,8 +1251,11 @@
             gameState.currentGuess = '';
             gameState.currentRow++;
 
+            // Show scoring feedback
             if (correct) {
-                showMessage(`Correct! Word solved!`, 'success');
+                showMessage(`🎉 Correct! +${totalScore} points total (${earlyBonus} early bonus!)`, 'success');
+            } else if (pointsEarned > 0) {
+                showMessage(`+${pointsEarned} points! Total: ${totalScore}`, 'info');
             }
 
             // Update keyboard colors after animation

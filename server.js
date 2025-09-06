@@ -161,8 +161,8 @@ class Match {
         
         // Player progress tracking
         this.playerProgress = {
-            [player1.id]: { currentRow: 0, guesses: [], completed: false },
-            [player2.id]: { currentRow: 0, guesses: [], completed: false }
+            [player1.id]: { currentRow: 0, guesses: [], completed: false, score: 0, correctLetters: new Set() },
+            [player2.id]: { currentRow: 0, guesses: [], completed: false, score: 0, correctLetters: new Set() }
         };
         
         // Save to database
@@ -227,8 +227,32 @@ class Match {
         playerProgress.currentRow++;
         playerProgress.guesses.push({ guess, result, row: playerProgress.currentRow - 1 });
 
+        // Calculate points for this guess
+        let guessPoints = 0;
+        for (let i = 0; i < 5; i++) {
+            const letter = guess[i];
+            if (result[i] === 'correct') {
+                // 10 points for correct position (green)
+                if (!playerProgress.correctLetters.has(letter)) {
+                    guessPoints += 10;
+                    playerProgress.correctLetters.add(letter);
+                }
+            } else if (result[i] === 'present') {
+                // 5 points for correct letter, wrong position (yellow)
+                if (!playerProgress.correctLetters.has(letter)) {
+                    guessPoints += 5;
+                    playerProgress.correctLetters.add(letter);
+                }
+            }
+        }
+
+        playerProgress.score += guessPoints;
+
         if (guess === target) {
             playerProgress.completed = true;
+            // Early completion bonus: 50 - (10 * number of guesses used)
+            const earlyBonus = Math.max(50 - (playerProgress.currentRow * 10), 10);
+            playerProgress.score += earlyBonus;
             this.winner = playerId;
             this.resolveMatch();
         }
@@ -240,7 +264,10 @@ class Match {
         return {
             result: result,
             correct: guess === target,
-            completed: playerProgress.completed
+            completed: playerProgress.completed,
+            pointsEarned: guessPoints,
+            totalScore: playerProgress.score,
+            earlyBonus: guess === target ? Math.max(50 - (playerProgress.currentRow * 10), 10) : 0
         };
     }
 
@@ -489,9 +516,15 @@ class Game {
             player.currentRow = matchProgress.currentRow;
             player.completedCurrentWord = matchProgress.completed;
             
-            // If match is completed, update player score
-            if (currentMatch.status === 'completed' && currentMatch.winner === playerId) {
-                player.score = (player.score || 0) + 100;
+            // Update player's score with match progress
+            player.matchScore = matchProgress.score;
+            
+            // If match is completed, add match score to total
+            if (currentMatch.status === 'completed') {
+                player.score = (player.score || 0) + matchProgress.score;
+                if (currentMatch.winner === playerId) {
+                    player.score += 100; // Tournament win bonus
+                }
             }
             
             // Return the result with the updated player information
@@ -499,9 +532,13 @@ class Game {
                 result: result.result,
                 correct: result.correct,
                 completed: result.completed,
+                pointsEarned: result.pointsEarned,
+                totalScore: result.totalScore,
+                earlyBonus: result.earlyBonus,
                 player: {
                     currentRow: player.currentRow,
-                    score: player.score,
+                    score: player.matchScore || 0, // Show match score during match
+                    totalScore: player.score || 0, // Show tournament total
                     completedCurrentWord: player.completedCurrentWord
                 }
             };
