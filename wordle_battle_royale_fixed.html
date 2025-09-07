@@ -324,9 +324,13 @@
         .opponent-cell {
             width: 25px;
             height: 25px;
-            border: 1px solid #565758;
-            border-radius: 3px;
+            border: 2px solid #565758;
+            border-radius: 4px;
             background: #121213;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
         }
 
         .opponent-cell.correct {
@@ -1797,8 +1801,15 @@
                         startClientTimer();
                     }
 
-                    // Show opponent section and update opponent grid
+                    // Show opponent section and ensure grid is set up
                     document.getElementById('opponentSection').classList.remove('hidden');
+                    
+                    // Ensure opponent grid exists before updating
+                    const opponentGrid = document.getElementById('opponentGrid');
+                    if (!opponentGrid || opponentGrid.children.length === 0) {
+                        setupOpponentGrid();
+                    }
+                    
                     updateOpponentGrid(gameState.currentMatch.opponentProgress);
                 } else {
                     // Hide match-specific elements if no current match
@@ -1835,32 +1846,46 @@
         }
 
         function updateOpponentGrid(opponentProgress) {
-            if (!opponentProgress) return;
+            // Ensure the grid exists first
+            const opponentGrid = document.getElementById('opponentGrid');
+            if (!opponentGrid) {
+                setupOpponentGrid();
+            }
             
-            // Clear existing progress
+            // Make sure all cells exist and are visible
             for (let i = 0; i < 6; i++) {
                 for (let j = 0; j < 5; j++) {
-                    const cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                    let cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                    if (!cell) {
+                        // If cell doesn't exist, recreate the entire grid
+                        setupOpponentGrid();
+                        cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                    }
                     if (cell) {
+                        // Clear previous classes
                         cell.classList.remove('correct', 'present', 'absent');
+                        // Ensure cell is visible
+                        cell.style.display = 'flex';
                     }
                 }
             }
 
             // Apply opponent's progress (colors only, no letters)
-            opponentProgress.forEach(guess => {
-                const row = guess.row;
-                if (row < 6) {
-                    guess.result.forEach((result, col) => {
-                        if (col < 5) {
-                            const cell = document.getElementById(`opponent-cell-${row}-${col}`);
-                            if (cell) {
-                                cell.classList.add(result);
+            if (opponentProgress && Array.isArray(opponentProgress)) {
+                opponentProgress.forEach(guess => {
+                    const row = guess.row;
+                    if (row >= 0 && row < 6 && guess.result && Array.isArray(guess.result)) {
+                        guess.result.forEach((result, col) => {
+                            if (col >= 0 && col < 5) {
+                                const cell = document.getElementById(`opponent-cell-${row}-${col}`);
+                                if (cell && ['correct', 'present', 'absent'].includes(result)) {
+                                    cell.classList.add(result);
+                                }
                             }
-                        }
-                    });
-                }
-            });
+                        });
+                    }
+                });
+            }
         }
 
         function updatePlayersList() {
