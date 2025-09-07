@@ -243,30 +243,52 @@ function processPublicMatchmakingQueue() {
     const socket1 = io.sockets.sockets.get(player1Entry.socketId);
     const socket2 = io.sockets.sockets.get(player2Entry.socketId);
     
-    // Validate sockets still exist
+    // Validate sockets still exist and are not already in games
     if (!socket1 || !socket2) {
         console.log('⚠️ One or both players disconnected, returning to queue processing');
         // Put back the valid player if any
         if (socket1) publicMatchmakingQueue.unshift(player1Entry);
         if (socket2) publicMatchmakingQueue.unshift(player2Entry);
+        updateQueuePositions();
+        return;
+    }
+    
+    // Check if players are already in games (prevent duplicate matches)
+    const existingPlayer1 = playerSockets.get(socket1.id);
+    const existingPlayer2 = playerSockets.get(socket2.id);
+    
+    if (existingPlayer1 || existingPlayer2) {
+        console.log('⚠️ One or both players already in games, returning to queue');
+        if (!existingPlayer1) publicMatchmakingQueue.unshift(player1Entry);
+        if (!existingPlayer2) publicMatchmakingQueue.unshift(player2Entry);
+        updateQueuePositions();
         return;
     }
     
     // Create a new public game
     const gameId = generateShortId(6);
-    const game = new Game(gameId, 2); // Max 2 players for public matches
-    game.isPublicMatch = true;
+    let game;
     
-    activeGames.set(gameId, game);
-    
-    // Add both players to the game
-    socket1.join(gameId);
-    socket2.join(gameId);
-    
-    const result1 = game.addPlayer(socket1.id, player1Entry.playerName);
-    const result2 = game.addPlayer(socket2.id, player2Entry.playerName);
-    
-    if (result1.success && result2.success) {
+    try {
+        game = new Game(gameId, 2); // Max 2 players for public matches
+        game.isPublicMatch = true;
+        activeGames.set(gameId, game);
+        
+        // Add both players to the game
+        socket1.join(gameId);
+        socket2.join(gameId);
+        
+        const result1 = game.addPlayer(socket1.id, player1Entry.playerName);
+        const result2 = game.addPlayer(socket2.id, player2Entry.playerName);
+        
+        if (!result1.success || !result2.success) {
+            throw new Error(`Failed to add players: P1=${result1.success}, P2=${result2.success}`);
+        }
+        
+        // Track players in global map
+        playerSockets.set(socket1.id, { gameId, playerId: result1.playerId, name: player1Entry.playerName });
+        playerSockets.set(socket2.id, { gameId, playerId: result2.playerId, name: player2Entry.playerName });
+        
         // Notify both players they found a match
         socket1.emit('matchFound', {
             gameId: gameId,
@@ -282,20 +304,57 @@ function processPublicMatchmakingQueue() {
         
         // Start the game automatically after a brief delay
         setTimeout(() => {
-            if (game.startGame()) {
-                game.broadcastGameState();
-                console.log(`✅ Public match started: ${gameId}`);
+            try {
+                if (activeGames.has(gameId) && game.startGame()) {
+                    game.broadcastGameState();
+                    console.log(`✅ Public match started: ${gameId}`);
+                } else {
+                    console.log(`⚠️ Failed to start game ${gameId} - cleaning up`);
+                    cleanupFailedMatch(gameId, socket1, socket2);
+                }
+            } catch (error) {
+                console.error(`❌ Error starting game ${gameId}:`, error);
+                cleanupFailedMatch(gameId, socket1, socket2);
             }
         }, 2000);
         
-    } else {
-        console.log('❌ Failed to create public match, returning players to queue');
-        // Return players to queue if game creation failed
+        console.log(`🎯 Match created successfully: ${gameId}`);
+        
+    } catch (error) {
+        console.error('❌ Failed to create public match:', error);
+        
+        // Cleanup and return players to queue
+        cleanupFailedMatch(gameId, socket1, socket2);
         publicMatchmakingQueue.unshift(player2Entry, player1Entry);
     }
     
     // Update queue positions for remaining players
     updateQueuePositions();
+}
+
+function cleanupFailedMatch(gameId, socket1, socket2) {
+    try {
+        // Remove from active games
+        if (gameId && activeGames.has(gameId)) {
+            activeGames.delete(gameId);
+            console.log(`🧹 Cleaned up failed game: ${gameId}`);
+        }
+        
+        // Remove from player tracking
+        if (socket1 && socket1.id) {
+            playerSockets.delete(socket1.id);
+            socket1.leave(gameId);
+            socket1.emit('matchError', { error: 'Match creation failed. Please try again.' });
+        }
+        
+        if (socket2 && socket2.id) {
+            playerSockets.delete(socket2.id);
+            socket2.leave(gameId);
+            socket2.emit('matchError', { error: 'Match creation failed. Please try again.' });
+        }
+    } catch (cleanupError) {
+        console.error('❌ Error during match cleanup:', cleanupError);
+    }
 }
 
 // Calculate round-based score multiplier
