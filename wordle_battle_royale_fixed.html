@@ -328,24 +328,24 @@
             width: 25px;
             height: 25px;
             border: 2px solid #3a3a3c;
-            border-radius: 3px;
+            border-radius: 4px;
             background: #121213;
             box-sizing: border-box;
         }
 
         .opponent-cell.correct {
-            background-color: #538d4e !important;
-            border-color: #538d4e !important;
+            background-color: #538d4e;
+            /* Inherits border and border-radius from base .opponent-cell */
         }
 
         .opponent-cell.present {
-            background-color: #b59f3b !important;
-            border-color: #b59f3b !important;
+            background-color: #b59f3b;
+            /* Inherits border and border-radius from base .opponent-cell */
         }
 
         .opponent-cell.absent {
-            background-color: #3a3a3c !important;
-            border-color: #3a3a3c !important;
+            background-color: #3a3a3c;
+            /* Inherits border and border-radius from base .opponent-cell */
         }
 
         /* Force opponent cells to always be visible */
