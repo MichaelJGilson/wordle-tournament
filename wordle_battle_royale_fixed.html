@@ -308,29 +308,35 @@
         }
 
         .opponent-grid {
-            display: grid;
+            display: grid !important;
             grid-template-rows: repeat(6, 1fr);
-            gap: 2px;
+            gap: 3px;
             max-width: 150px;
             margin: 0 auto;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         .opponent-row {
-            display: grid;
+            display: grid !important;
             grid-template-columns: repeat(5, 1fr);
-            gap: 2px;
+            gap: 3px;
+            visibility: visible !important;
         }
 
         .opponent-cell {
             width: 25px;
             height: 25px;
-            border: 2px solid #565758;
+            border: 2px solid #3a3a3c;
             border-radius: 4px;
-            background: #121213;
-            display: flex;
+            background: #1a1a1a;
+            display: flex !important;
             align-items: center;
             justify-content: center;
             box-sizing: border-box;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: relative;
         }
 
         .opponent-cell.correct {
@@ -1846,9 +1852,12 @@
         }
 
         function updateOpponentGrid(opponentProgress) {
+            console.log('🎯 Updating opponent grid with progress:', opponentProgress);
+            
             // Ensure the grid exists first
             const opponentGrid = document.getElementById('opponentGrid');
             if (!opponentGrid) {
+                console.log('⚠️ Opponent grid not found, creating new one');
                 setupOpponentGrid();
             }
             
@@ -1864,11 +1873,17 @@
                     if (cell) {
                         // Clear previous classes
                         cell.classList.remove('correct', 'present', 'absent');
-                        // Ensure cell is visible
+                        // Force cell to be visible
                         cell.style.display = 'flex';
+                        cell.style.visibility = 'visible';
+                        cell.style.opacity = '1';
+                        cell.style.width = '25px';
+                        cell.style.height = '25px';
                     }
                 }
             }
+            
+            console.log(`🎯 All 30 opponent cells processed and made visible`);
 
             // Apply opponent's progress (colors only, no letters)
             if (opponentProgress && Array.isArray(opponentProgress)) {
