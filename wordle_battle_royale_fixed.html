@@ -36,15 +36,45 @@
         }
 
         .title {
-            font-size: 3.5rem;
+            font-size: 4rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 25%, #e8e8e8 75%, #d0d0d0 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 16px;
-            letter-spacing: -0.02em;
-            text-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+            letter-spacing: -0.03em;
+            position: relative;
+            display: inline-block;
+        }
+
+        .title::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 25%, #e8e8e8 75%, #d0d0d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: blur(8px);
+            opacity: 0.5;
+            z-index: -1;
+        }
+
+        .title::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120%;
+            height: 120%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            z-index: -2;
+            border-radius: 50%;
         }
 
         .game-stats {
@@ -497,10 +527,13 @@
         .timer {
             text-align: center;
             font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 20px;
-            color: #b59f3b;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: #f4d03f;
+            text-shadow: 
+                0 2px 4px rgba(0,0,0,0.4),
+                0 0 8px rgba(244, 208, 63, 0.3);
+            letter-spacing: 0.02em;
         }
 
         .game-setup {
@@ -701,8 +734,10 @@
             </div>
             <p id="lobbyPlayerCount">Players: 0/100</p>
             <div id="lobbyPlayerList"></div>
-            <button class="btn" id="startGameBtn" onclick="startMultiplayerGame()">Start Game</button>
-            <button class="btn" onclick="leaveGame()">Leave Game</button>
+            <div class="button-group">
+                <button class="btn" id="startGameBtn" onclick="startMultiplayerGame()">Start Game</button>
+                <button class="btn" onclick="leaveGame()">Leave Game</button>
+            </div>
         </div>
 
         <!-- Main Game Area -->
