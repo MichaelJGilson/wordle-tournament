@@ -328,15 +328,9 @@
             width: 25px;
             height: 25px;
             border: 2px solid #3a3a3c;
-            border-radius: 4px;
-            background: #1a1a1a;
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
+            border-radius: 3px;
+            background: #121213;
             box-sizing: border-box;
-            visibility: visible !important;
-            opacity: 1 !important;
-            position: relative;
         }
 
         .opponent-cell.correct {
@@ -352,6 +346,13 @@
         .opponent-cell.absent {
             background-color: #3a3a3c !important;
             border-color: #3a3a3c !important;
+        }
+
+        /* Force opponent cells to always be visible */
+        .opponent-cell {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         .match-info {
@@ -1832,8 +1833,12 @@
 
         function setupOpponentGrid() {
             const opponentGrid = document.getElementById('opponentGrid');
-            if (!opponentGrid) return;
+            if (!opponentGrid) {
+                console.log('❌ Cannot setup opponent grid - element not found');
+                return;
+            }
             
+            console.log('🔧 Setting up opponent grid - clearing existing content');
             opponentGrid.innerHTML = '';
             
             for (let i = 0; i < 6; i++) {
@@ -1849,58 +1854,58 @@
                 
                 opponentGrid.appendChild(row);
             }
+            
+            console.log('✅ Opponent grid setup complete - created 30 cells (6 rows x 5 cols)');
+            
+            // Verify all cells are actually there
+            const cellCount = opponentGrid.querySelectorAll('.opponent-cell').length;
+            console.log(`🔍 Verification: Found ${cellCount} opponent cells in DOM`);
         }
 
         function updateOpponentGrid(opponentProgress) {
             console.log('🎯 Updating opponent grid with progress:', opponentProgress);
             
-            // Ensure the grid exists first
+            // Ensure the grid exists first, but NEVER recreate if it already exists
             const opponentGrid = document.getElementById('opponentGrid');
-            if (!opponentGrid) {
-                console.log('⚠️ Opponent grid not found, creating new one');
+            if (!opponentGrid || opponentGrid.children.length === 0) {
+                console.log('⚠️ Opponent grid not found or empty, creating new one');
                 setupOpponentGrid();
+                return; // Exit and let the next update handle the coloring
             }
             
-            // Make sure all cells exist and are visible
+            // Reset ALL cells to their default empty state first
             for (let i = 0; i < 6; i++) {
                 for (let j = 0; j < 5; j++) {
-                    let cell = document.getElementById(`opponent-cell-${i}-${j}`);
-                    if (!cell) {
-                        // If cell doesn't exist, recreate the entire grid
-                        setupOpponentGrid();
-                        cell = document.getElementById(`opponent-cell-${i}-${j}`);
-                    }
+                    const cell = document.getElementById(`opponent-cell-${i}-${j}`);
                     if (cell) {
-                        // Clear previous classes
+                        // Remove color classes but keep the cell visible
                         cell.classList.remove('correct', 'present', 'absent');
-                        // Force cell to be visible
-                        cell.style.display = 'flex';
-                        cell.style.visibility = 'visible';
-                        cell.style.opacity = '1';
-                        cell.style.width = '25px';
-                        cell.style.height = '25px';
                     }
                 }
             }
             
-            console.log(`🎯 All 30 opponent cells processed and made visible`);
+            console.log(`🎯 Reset all 30 opponent cells to empty state`);
 
-            // Apply opponent's progress (colors only, no letters)
+            // Now apply opponent's progress colors ONLY to cells with guesses
             if (opponentProgress && Array.isArray(opponentProgress)) {
                 opponentProgress.forEach(guess => {
                     const row = guess.row;
                     if (row >= 0 && row < 6 && guess.result && Array.isArray(guess.result)) {
+                        console.log(`🎨 Applying colors to row ${row}:`, guess.result);
                         guess.result.forEach((result, col) => {
                             if (col >= 0 && col < 5) {
                                 const cell = document.getElementById(`opponent-cell-${row}-${col}`);
                                 if (cell && ['correct', 'present', 'absent'].includes(result)) {
                                     cell.classList.add(result);
+                                    console.log(`🎨 Applied ${result} to cell (${row}, ${col})`);
                                 }
                             }
                         });
                     }
                 });
             }
+            
+            console.log('🎯 Opponent grid update complete');
         }
 
         function updatePlayersList() {
