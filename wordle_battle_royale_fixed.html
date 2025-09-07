@@ -334,25 +334,41 @@
         }
 
         .opponent-cell.correct {
-            background-color: #538d4e;
-            /* Inherits border and border-radius from base .opponent-cell */
+            background-color: #538d4e !important;
+            border: 2px solid #3a3a3c !important;
+            border-radius: 4px !important;
+            width: 25px !important;
+            height: 25px !important;
         }
 
         .opponent-cell.present {
-            background-color: #b59f3b;
-            /* Inherits border and border-radius from base .opponent-cell */
+            background-color: #b59f3b !important;
+            border: 2px solid #3a3a3c !important;
+            border-radius: 4px !important;
+            width: 25px !important;
+            height: 25px !important;
         }
 
         .opponent-cell.absent {
-            background-color: #3a3a3c;
-            /* Inherits border and border-radius from base .opponent-cell */
+            background-color: #3a3a3c !important;
+            border: 2px solid #3a3a3c !important;
+            border-radius: 4px !important;
+            width: 25px !important;
+            height: 25px !important;
         }
 
-        /* Force opponent cells to always be visible */
+        /* Force opponent cells to always be visible - Updated 2025-09-06 */
         .opponent-cell {
             display: block !important;
             visibility: visible !important;
             opacity: 1 !important;
+        }
+
+        /* Additional override to ensure opponent cells maintain consistent styling */
+        .opponent-grid .opponent-row .opponent-cell {
+            border: 2px solid #3a3a3c !important;
+            border-radius: 4px !important;
+            box-sizing: border-box !important;
         }
 
         .match-info {
