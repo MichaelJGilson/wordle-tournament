@@ -1321,15 +1321,61 @@
             const lobbyPlayerList = document.getElementById('lobbyPlayerList');
             lobbyPlayerList.innerHTML = '';
             
+            // Show host information for custom games
+            if (serverGameState.host && !serverGameState.isPublicMatch) {
+                const hostInfo = document.createElement('div');
+                hostInfo.textContent = `Host: ${serverGameState.host.name}`;
+                hostInfo.style.padding = '8px';
+                hostInfo.style.background = '#b59f3b';
+                hostInfo.style.margin = '5px 0';
+                hostInfo.style.borderRadius = '5px';
+                hostInfo.style.fontWeight = 'bold';
+                hostInfo.style.textAlign = 'center';
+                lobbyPlayerList.appendChild(hostInfo);
+            }
+            
             serverGameState.players.slice(0, 10).forEach(player => {
                 const playerDiv = document.createElement('div');
-                playerDiv.textContent = player.name;
+                let displayName = player.name;
+                
+                // Add host indicator
+                if (serverGameState.host && player.id === serverGameState.host.id) {
+                    displayName += ' 👑';
+                }
+                
+                playerDiv.textContent = displayName;
                 playerDiv.style.padding = '5px';
                 playerDiv.style.background = player.id === gameState.playerId ? '#538d4e' : '#3a3a3c';
                 playerDiv.style.margin = '2px';
                 playerDiv.style.borderRadius = '5px';
                 lobbyPlayerList.appendChild(playerDiv);
             });
+            
+            // Update start button visibility and state
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) {
+                const canStart = serverGameState.isHost && serverGameState.players.length >= 2;
+                const isPublic = serverGameState.isPublicMatch;
+                
+                if (isPublic) {
+                    // Hide start button for public matches (auto-start)
+                    startBtn.style.display = 'none';
+                } else {
+                    // Show/hide and enable/disable for custom games
+                    startBtn.style.display = serverGameState.isHost ? 'block' : 'none';
+                    startBtn.disabled = !canStart;
+                    
+                    if (serverGameState.isHost) {
+                        if (serverGameState.players.length < 2) {
+                            startBtn.textContent = 'Need 2+ Players to Start';
+                            startBtn.disabled = true;
+                        } else {
+                            startBtn.textContent = 'Start Game';
+                            startBtn.disabled = false;
+                        }
+                    }
+                }
+            }
         }
 
         // Game input handling

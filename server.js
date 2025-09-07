@@ -545,6 +545,7 @@ class Game {
         this.maxPlayers = maxPlayers;
         this.timerInterval = null;
         this.eliminationInProgress = false;
+        this.hostId = null; // Track the game host (first player to join)
         
         // Tournament-specific properties
         this.tournamentMode = true;
@@ -577,11 +578,17 @@ class Game {
         this.players.set(playerId, player);
         playerSockets.set(socketId, { gameId: this.id, playerId: playerId });
 
+        // Set host as the first player to join (only for custom games)
+        if (!this.isPublicMatch && !this.hostId) {
+            this.hostId = playerId;
+            console.log(`🏠 Host set to ${playerName} (${playerId}) for game ${this.id}`);
+        }
+
         // Save to database
         db.run(`INSERT INTO players (id, game_id, name, socket_id) VALUES (?, ?, ?, ?)`,
             [playerId, this.id, playerName, socketId]);
 
-        return { success: true, playerId: playerId, player: player };
+        return { success: true, playerId: playerId, player: player, isHost: playerId === this.hostId };
     }
 
     removePlayer(socketId) {
@@ -595,9 +602,19 @@ class Game {
         }
     }
 
-    startGame() {
-        if (this.status !== 'waiting' || this.players.size === 0) {
-            return false;
+    startGame(requestingPlayerId = null) {
+        if (this.status !== 'waiting') {
+            return { success: false, error: 'Game already started or ended' };
+        }
+
+        // Check minimum players requirement
+        if (this.players.size < 2) {
+            return { success: false, error: 'At least 2 players required to start the game' };
+        }
+
+        // For custom games, only host can start
+        if (!this.isPublicMatch && requestingPlayerId !== this.hostId) {
+            return { success: false, error: 'Only the host can start the game' };
         }
 
         this.status = 'playing';
@@ -606,7 +623,7 @@ class Game {
         // Update database
         db.run(`UPDATE games SET status = 'playing', started_at = CURRENT_TIMESTAMP WHERE id = ?`, [this.id]);
 
-        return true;
+        return { success: true };
     }
 
     createTournamentMatches() {
@@ -879,6 +896,22 @@ class Game {
             };
         }
 
+        // Add host information for custom games
+        if (!this.isPublicMatch && this.hostId) {
+            const hostPlayer = this.players.get(this.hostId);
+            if (hostPlayer) {
+                gameState.host = {
+                    id: this.hostId,
+                    name: hostPlayer.name
+                };
+                
+                // Add flag to indicate if requesting player is the host
+                if (requestingPlayerId) {
+                    gameState.isHost = requestingPlayerId === this.hostId;
+                }
+            }
+        }
+
         // Add match-specific information for requesting player
         if (requestingPlayerId && this.status === 'playing') {
             const playerMatch = this.getPlayerMatch(requestingPlayerId);
@@ -977,11 +1010,11 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (game.startGame()) {
-            callback({ success: true });
+        const result = game.startGame(playerInfo.playerId);
+        callback(result);
+        
+        if (result.success) {
             game.broadcastGameState();
-        } else {
-            callback({ success: false, error: 'Cannot start game' });
         }
     });
 
