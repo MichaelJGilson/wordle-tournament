@@ -1363,9 +1363,17 @@ class BattleRoyaleGame {
     }
     
     broadcastGameState() {
+        console.log(`🔄 Broadcasting Battle Royale game state to ${this.players.size} players`);
         // Send personalized game state to each player
         Array.from(this.players.values()).forEach(player => {
             const personalizedState = this.getGameStateForPlayer(player.id);
+            console.log(`📡 Sending state to ${player.name} (${player.id}):`, {
+                status: personalizedState.status,
+                gameTimer: personalizedState.gameTimer,
+                isBattleRoyale: personalizedState.isBattleRoyale,
+                playersAlive: personalizedState.playersAlive,
+                currentOpponent: personalizedState.currentOpponent?.name
+            });
             const socket = io.sockets.sockets.get(player.socketId);
             if (socket) {
                 socket.emit('gameUpdate', personalizedState);

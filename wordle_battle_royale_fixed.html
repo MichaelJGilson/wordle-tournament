@@ -1585,6 +1585,12 @@
                 if (serverGameState.gameTimer !== undefined) {
                     gameState.gameTimer = serverGameState.gameTimer;
                     gameState.gameTimerFormatted = serverGameState.gameTimerFormatted;
+                    
+                    // Start client timer if not running or needs sync
+                    if (!gameState.timerInterval || Math.abs(gameState.clientTimer - gameState.gameTimer) > 2) {
+                        console.log('⏰ Starting/syncing Battle Royale timer:', gameState.gameTimer);
+                        startClientTimer();
+                    }
                 }
                 
                 // Update rank/score from current player
@@ -1977,18 +1983,33 @@
                 clearInterval(gameState.timerInterval);
             }
 
-            if (gameState.currentMatch && gameState.gameStatus === 'playing') {
-                gameState.clientTimer = gameState.currentMatch.timer;
-                
-                gameState.timerInterval = setInterval(() => {
-                    gameState.clientTimer = Math.max(0, gameState.clientTimer - 1);
-                    updateTimerDisplay();
-                    
-                    if (gameState.clientTimer <= 0) {
-                        clearInterval(gameState.timerInterval);
-                    }
-                }, 1000);
+            let timerValue = 0;
+            
+            if (gameState.isBattleRoyale && gameState.gameStatus === 'playing' && gameState.gameTimer !== undefined) {
+                // Battle Royale mode - use gameTimer from server
+                timerValue = gameState.gameTimer;
+                console.log('⏰ Starting Battle Royale timer:', timerValue);
+            } else if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+                // Tournament mode - use match timer
+                timerValue = gameState.currentMatch.timer;
+                console.log('⏰ Starting Tournament timer:', timerValue);
+            } else {
+                console.log('⏰ No timer to start - not in active game');
+                return;
             }
+            
+            gameState.clientTimer = timerValue;
+            
+            gameState.timerInterval = setInterval(() => {
+                gameState.clientTimer = Math.max(0, gameState.clientTimer - 1);
+                updateTimerDisplay();
+                
+                if (gameState.clientTimer <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    gameState.timerInterval = null;
+                    console.log('⏰ Timer expired');
+                }
+            }, 1000);
         }
 
         function stopClientTimer() {
@@ -2003,7 +2024,17 @@
             const minutes = Math.floor(timer / 60);
             const seconds = timer % 60;
             
-            if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+            if (gameState.isBattleRoyale && gameState.gameStatus === 'playing') {
+                // Battle Royale mode - show time remaining until end
+                document.getElementById('timer').textContent = `⏱️ Battle Royale: ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+                
+                // Also update the match timer in sidebar if it exists
+                const matchTimer = document.getElementById('matchTimer');
+                if (matchTimer) {
+                    matchTimer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+            } else if (gameState.currentMatch && gameState.gameStatus === 'playing') {
+                // Tournament mode - show match time
                 document.getElementById('timer').textContent = `⏱️ Match time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
                 
                 // Also update the match timer in sidebar
@@ -2011,7 +2042,11 @@
                 if (matchTimer) {
                     matchTimer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
                 }
+            } else if (gameState.isBattleRoyale) {
+                // Battle Royale waiting state
+                document.getElementById('timer').textContent = '⏳ Searching for opponents...';
             } else {
+                // Tournament waiting state
                 document.getElementById('timer').textContent = '⏳ Waiting for match...';
             }
         }
@@ -2343,16 +2378,18 @@
             // Show opponent info if we have a current opponent (use serverGameState for latest data)
             const currentOpponent = serverGameState.currentOpponent || gameState.currentOpponent;
             if (currentOpponent) {
-                console.log('🎯 Showing opponent:', currentOpponent.name);
+                // Handle both string format (from server) and object format (legacy)
+                const opponentName = typeof currentOpponent === 'string' ? currentOpponent : currentOpponent.name;
+                console.log('🎯 Showing opponent:', opponentName);
                 
                 // Update the sidebar opponent section title
                 const opponentTitle = document.querySelector('.opponent-section h3');
                 if (opponentTitle) {
-                    opponentTitle.textContent = `Opponent: ${currentOpponent.name}`;
+                    opponentTitle.textContent = `Opponent: ${opponentName}`;
                 }
                 
-                // Update opponent progress if available
-                if (currentOpponent.progress) {
+                // Update opponent progress if available (object format only)
+                if (typeof currentOpponent === 'object' && currentOpponent.progress) {
                     updateOpponentGrid(currentOpponent.progress);
                 }
             } else {
