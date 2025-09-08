@@ -1544,8 +1544,9 @@
             console.log('🔄 Server status:', serverGameState.status);
             console.log('🔄 Tournament mode:', serverGameState.tournamentMode);
             console.log('🔄 Battle Royale:', serverGameState.isBattleRoyale);
-            console.log('🔄 Current match:', serverGameState.currentMatch);
-            console.log('🔄 Players count:', serverGameState.players?.length);
+            console.log('🔄 Game Timer:', serverGameState.gameTimer);
+            console.log('🔄 Player Progress:', serverGameState.playerProgress);
+            console.log('🔄 Current Opponent:', serverGameState.currentOpponent);
             console.log('🔄 Players alive:', serverGameState.playersAlive);
             console.log('🔄 Full server state:', serverGameState);
             
@@ -1610,35 +1611,37 @@
             }
             }
 
-            // Check for new round or new match BEFORE updating the state
-            const isNewRound = serverGameState.round > previousRound;
-            const isNewMatch = previousMatchId && serverGameState.currentMatch?.id && 
-                              previousMatchId !== serverGameState.currentMatch.id;
-            
-            if (serverGameState.status === 'playing' && (isNewRound || isNewMatch)) {
-                console.log('🔄 RESET TRIGGERED - New tournament round or match detected');
-                console.log('🔄 Old round:', previousRound, '-> New round:', serverGameState.round);
-                console.log('🔄 Old match ID:', previousMatchId);
-                console.log('🔄 New match ID:', serverGameState.currentMatch?.id);
-                console.log('🔄 Is new round:', isNewRound);
-                console.log('🔄 Is new match:', isNewMatch);
+            // Check for new round or new match BEFORE updating the state (TOURNAMENT MODE ONLY)
+            if (!serverGameState.isBattleRoyale) {
+                const isNewRound = serverGameState.round > previousRound;
+                const isNewMatch = previousMatchId && serverGameState.currentMatch?.id && 
+                                  previousMatchId !== serverGameState.currentMatch.id;
                 
-                if (isNewRound) {
-                    showRoundCountdown(serverGameState.round);
+                if (serverGameState.status === 'playing' && (isNewRound || isNewMatch)) {
+                    console.log('🔄 RESET TRIGGERED - New tournament round or match detected');
+                    console.log('🔄 Old round:', previousRound, '-> New round:', serverGameState.round);
+                    console.log('🔄 Old match ID:', previousMatchId);
+                    console.log('🔄 New match ID:', serverGameState.currentMatch?.id);
+                    console.log('🔄 Is new round:', isNewRound);
+                    console.log('🔄 Is new match:', isNewMatch);
+                    
+                    if (isNewRound) {
+                        showRoundCountdown(serverGameState.round);
+                    }
+                    
+                    forceCompleteReset();
                 }
-                
-                forceCompleteReset();
             }
             
-            // Also check if player's currentRow is 0 but we have board content (desync fix)
-            if (currentPlayer && currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.status === 'playing') {
+            // Also check if player's currentRow is 0 but we have board content (desync fix - TOURNAMENT MODE ONLY)
+            if (!serverGameState.isBattleRoyale && currentPlayer && currentPlayer.currentRow === 0 && gameState.currentRow > 0 && serverGameState.status === 'playing') {
                 console.log('🔄 DESYNC DETECTED - Server says row 0, client has', gameState.currentRow);
                 console.log('🔄 Forcing complete reset due to row desync');
                 forceCompleteReset();
             }
             
-            // Extra check: if server says we're at row 0, make sure client is too
-            if (currentPlayer && currentPlayer.currentRow === 0 && serverGameState.status === 'playing') {
+            // Extra check: if server says we're at row 0, make sure client is too (TOURNAMENT MODE ONLY)
+            if (!serverGameState.isBattleRoyale && currentPlayer && currentPlayer.currentRow === 0 && serverGameState.status === 'playing') {
                 console.log('🔄 Server confirms currentRow = 0, ensuring client sync');
                 gameState.currentRow = 0;
                 gameState.currentGuess = '';
@@ -2337,19 +2340,20 @@
                 setupOpponentGrid();
             }
             
-            // Show opponent info if we have a current opponent
-            if (gameState.currentOpponent) {
-                console.log('🎯 Showing opponent:', gameState.currentOpponent.name);
+            // Show opponent info if we have a current opponent (use serverGameState for latest data)
+            const currentOpponent = serverGameState.currentOpponent || gameState.currentOpponent;
+            if (currentOpponent) {
+                console.log('🎯 Showing opponent:', currentOpponent.name);
                 
                 // Update the sidebar opponent section title
                 const opponentTitle = document.querySelector('.opponent-section h3');
                 if (opponentTitle) {
-                    opponentTitle.textContent = `Opponent: ${gameState.currentOpponent.name}`;
+                    opponentTitle.textContent = `Opponent: ${currentOpponent.name}`;
                 }
                 
                 // Update opponent progress if available
-                if (gameState.currentOpponent.progress) {
-                    updateOpponentGrid(gameState.currentOpponent.progress);
+                if (currentOpponent.progress) {
+                    updateOpponentGrid(currentOpponent.progress);
                 }
             } else {
                 // Show placeholder for no opponent yet
@@ -2371,10 +2375,11 @@
                 }
             }
             
-            // Update global timer display for Battle Royale
-            if (gameState.gameTimer !== undefined) {
-                const minutes = Math.floor(gameState.gameTimer / 60);
-                const seconds = gameState.gameTimer % 60;
+            // Update global timer display for Battle Royale (use latest server data)
+            const currentTimer = serverGameState.gameTimer !== undefined ? serverGameState.gameTimer : gameState.gameTimer;
+            if (currentTimer !== undefined) {
+                const minutes = Math.floor(currentTimer / 60);
+                const seconds = currentTimer % 60;
                 document.getElementById('timer').textContent = `🔥 Battle Royale: ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
             } else {
                 document.getElementById('timer').textContent = '🔥 Battle Royale Active';
