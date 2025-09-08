@@ -1143,6 +1143,16 @@ class BattleRoyaleGame {
             return { success: false, error: 'Invalid player progress' };
         }
         
+        // Calculate available rows (total rows minus garbage rows)
+        const totalRows = 6;
+        const availableRows = Math.max(1, totalRows - (progress.garbageRows || 0));
+        
+        // Check if player has exceeded available rows
+        if (progress.currentRow >= availableRows) {
+            console.log(`🚫 ${player.name} attempted guess but board is full: row ${progress.currentRow} >= available ${availableRows}`);
+            return { success: false, error: 'No space available for more guesses' };
+        }
+        
         const target = progress.currentWord;
         const result = this.evaluateGuess(guess, target);
         
@@ -1250,6 +1260,14 @@ class BattleRoyaleGame {
     }
     
     findNewOpponent(playerId) {
+        const player = this.players.get(playerId);
+        
+        // Ensure the requesting player is still alive
+        if (!player || !player.alive) {
+            console.log(`🚫 Cannot find opponent for eliminated player: ${playerId}`);
+            return;
+        }
+        
         const alivePlayers = Array.from(this.players.values())
             .filter(p => p.alive && p.id !== playerId && !this.activeMatches.has(p.id));
         
@@ -1264,7 +1282,15 @@ class BattleRoyaleGame {
     }
     
     findNewOpponentAfterWordCompletion(playerId) {
-        const playerName = this.players.get(playerId)?.name;
+        const player = this.players.get(playerId);
+        
+        // Ensure the requesting player is still alive
+        if (!player || !player.alive) {
+            console.log(`🚫 Cannot find opponent for eliminated player: ${playerId}`);
+            return;
+        }
+        
+        const playerName = player.name;
         const currentOpponentId = this.activeMatches.get(playerId);
         
         // Remove current match to avoid feedback loops

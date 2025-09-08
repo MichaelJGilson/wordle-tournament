@@ -1036,7 +1036,8 @@
             timerInterval: null, // Client timer interval
             publicMatchmaking: false, // Whether in public matchmaking mode
             matchmakingInterval: null, // Public matchmaking polling interval
-            animationInProgress: false // Global flag to prevent grid rebuilds during animations
+            animationInProgress: false, // Global flag to prevent grid rebuilds during animations
+            lastOpponentName: null // Track opponent changes to clear board
         };
 
         // Socket.io connection
@@ -1802,6 +1803,19 @@
                 showMessage('Not connected to server', 'error');
                 return;
             }
+            
+            // Check if board is full (Battle Royale mode)
+            if (gameState.isBattleRoyale) {
+                const totalRows = 6;
+                const garbageRows = gameState.garbageRows || 0;
+                const availableRows = Math.max(1, totalRows - garbageRows);
+                
+                if (gameState.currentRow >= availableRows) {
+                    showMessage('No space available - board is full!', 'error');
+                    shakeRow();
+                    return;
+                }
+            }
 
             const submittedGuess = gameState.currentGuess; // Store the guess before sending
             socket.emit('makeGuess', { guess: gameState.currentGuess }, (response) => {
@@ -2341,6 +2355,27 @@
             const cellCount = opponentGrid.querySelectorAll('.opponent-cell').length;
             console.log(`🔍 Verification: Found ${cellCount} opponent cells in DOM`);
         }
+        
+        function clearOpponentBoard() {
+            console.log('🧹 Clearing opponent board for new match');
+            const opponentGrid = document.getElementById('opponentGrid');
+            if (!opponentGrid) {
+                console.log('❌ Cannot clear opponent board - grid not found');
+                return;
+            }
+            
+            // Clear all opponent cells
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                    if (cell) {
+                        cell.textContent = '';
+                        cell.className = 'opponent-cell'; // Reset to base class only
+                    }
+                }
+            }
+            console.log('✅ Opponent board cleared');
+        }
 
         function updateOpponentGrid(opponentProgress) {
             console.log('🎯 Updating opponent grid with progress:', opponentProgress);
@@ -2414,6 +2449,14 @@
             if (currentOpponent) {
                 // Handle both string format (from server) and object format (legacy)
                 const opponentName = typeof currentOpponent === 'string' ? currentOpponent : currentOpponent.name;
+                
+                // Check if opponent changed - if so, clear the opponent board
+                if (gameState.lastOpponentName && gameState.lastOpponentName !== opponentName) {
+                    console.log(`🔄 Opponent changed from ${gameState.lastOpponentName} to ${opponentName} - clearing board`);
+                    clearOpponentBoard();
+                }
+                gameState.lastOpponentName = opponentName;
+                
                 console.log('🎯 Showing opponent:', opponentName);
                 
                 // Update the sidebar opponent section title
