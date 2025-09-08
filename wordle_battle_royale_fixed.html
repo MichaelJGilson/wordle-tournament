@@ -1567,6 +1567,8 @@
             // Handle Battle Royale mode
             if (serverGameState.isBattleRoyale) {
                 console.log('🔥 Processing Battle Royale update');
+                console.log('🔥 Players in server state:', serverGameState.players);
+                console.log('🔥 Current opponent in server state:', serverGameState.currentOpponent);
                 
                 // Update Battle Royale specific state
                 if (serverGameState.playerProgress) {

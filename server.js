@@ -1372,7 +1372,10 @@ class BattleRoyaleGame {
                 gameTimer: personalizedState.gameTimer,
                 isBattleRoyale: personalizedState.isBattleRoyale,
                 playersAlive: personalizedState.playersAlive,
-                currentOpponent: personalizedState.currentOpponent?.name
+                players: personalizedState.players ? `${personalizedState.players.length} players` : 'no players',
+                currentOpponent: personalizedState.currentOpponent ? 
+                    (typeof personalizedState.currentOpponent === 'string' ? personalizedState.currentOpponent : personalizedState.currentOpponent.name) 
+                    : 'none'
             });
             const socket = io.sockets.sockets.get(player.socketId);
             if (socket) {
