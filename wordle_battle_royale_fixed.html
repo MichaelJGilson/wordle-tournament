@@ -1035,7 +1035,8 @@
             clientTimer: 0, // Client-side timer for real-time countdown
             timerInterval: null, // Client timer interval
             publicMatchmaking: false, // Whether in public matchmaking mode
-            matchmakingInterval: null // Public matchmaking polling interval
+            matchmakingInterval: null, // Public matchmaking polling interval
+            animationInProgress: false // Global flag to prevent grid rebuilds during animations
         };
 
         // Socket.io connection
@@ -1843,10 +1844,15 @@
             const animationRow = gameState.currentRow;
             console.log(`🎨 Displaying guess result for row ${animationRow}: "${submittedGuess}"`);
             
+            // Set global animation state to prevent grid rebuilds
+            gameState.animationInProgress = true;
+            console.log(`🚫 Animation started - blocking grid rebuilds`);
+            
             // Ensure we're in the playable area
             const playableRows = gameState.maxRows || Math.max(1, 6 - (gameState.garbageRows || 0));
             if (animationRow >= playableRows) {
                 console.error(`❌ Cannot display guess result: current row ${animationRow} >= playable rows ${playableRows}`);
+                gameState.animationInProgress = false;
                 return;
             }
             
@@ -1876,6 +1882,11 @@
                             setTimeout(() => {
                                 if (currentCell && currentCell === cell) {
                                     currentCell.classList.remove('flipping');
+                                }
+                                // Clear global animation state after the last cell completes
+                                if (i === 4) { // Last cell (0-indexed)
+                                    gameState.animationInProgress = false;
+                                    console.log(`✅ Animation complete - grid rebuilds now allowed`);
                                 }
                             }, 600);
                         } else {
@@ -2064,19 +2075,25 @@
                 if (!gameState.lastGarbageCount || gameState.lastGarbageCount !== gameState.garbageRows) {
                     console.log(`🗑️ Garbage count changed from ${gameState.lastGarbageCount || 0} to ${gameState.garbageRows}`);
                     
-                    // Check if animations are currently running
-                    const isAnimating = document.querySelector('.flipping') !== null;
-                    if (isAnimating) {
-                        console.log(`⏳ Delaying garbage update until animations complete`);
-                        // Wait for animations to complete (600ms flip + 500ms stagger = 1200ms safety)
+                    // Check global animation state first, then check DOM as backup
+                    const globalAnimationBlocked = gameState.animationInProgress;
+                    const domAnimationDetected = document.querySelector('.flipping') !== null;
+                    
+                    if (globalAnimationBlocked || domAnimationDetected) {
+                        console.log(`⏳ Blocking garbage update - Global: ${globalAnimationBlocked}, DOM: ${domAnimationDetected}`);
+                        // Schedule retry after animation should complete
                         setTimeout(() => {
-                            console.log(`🗑️ Now updating garbage rows after animation delay`);
-                            updateGarbageRows(gameState.garbageRows);
+                            console.log(`🗑️ Retrying garbage update after animation delay`);
+                            // Re-check if update is still needed (state may have changed)
+                            if (gameState.garbageRows !== gameState.lastGarbageCount) {
+                                updateGarbageRows(gameState.garbageRows);
+                                gameState.lastGarbageCount = gameState.garbageRows;
+                            }
                         }, 1200);
                     } else {
                         updateGarbageRows(gameState.garbageRows);
+                        gameState.lastGarbageCount = gameState.garbageRows;
                     }
-                    gameState.lastGarbageCount = gameState.garbageRows;
                 }
             }
             
