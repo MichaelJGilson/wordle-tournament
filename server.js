@@ -1051,8 +1051,8 @@ class BattleRoyaleGame {
             return { success: false, error: 'At least 2 players required to start battle royale' };
         }
         
-        // Only host can start
-        if (requestingPlayerId !== this.hostId) {
+        // For public matches, allow auto-start. For custom games, only host can start
+        if (!this.isPublicMatch && requestingPlayerId !== this.hostId) {
             return { success: false, error: 'Only the host can start the game' };
         }
         
