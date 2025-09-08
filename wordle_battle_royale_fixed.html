@@ -1761,16 +1761,26 @@
                     console.log(`🎨 Setting cell ${gameState.currentRow}-${i} to "${submittedGuess[i]}" with color "${result[i]}"`);
                     
                     setTimeout(() => {
-                        cell.classList.add('flipping');
-                        // Change color at the exact midpoint of the flip animation
-                        setTimeout(() => {
-                            cell.classList.remove('correct', 'present', 'absent');
-                            cell.classList.add(result[i]);
-                        }, 300); // Exactly at 50% of 0.6s animation
-                        // Remove flipping class when animation completes
-                        setTimeout(() => {
-                            cell.classList.remove('flipping');
-                        }, 600);
+                        // Double-check cell still exists and is the right one
+                        const currentCell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
+                        if (currentCell && currentCell === cell) {
+                            currentCell.classList.add('flipping');
+                            // Change color at the exact midpoint of the flip animation
+                            setTimeout(() => {
+                                if (currentCell && currentCell === cell) {
+                                    currentCell.classList.remove('correct', 'present', 'absent');
+                                    currentCell.classList.add(result[i]);
+                                }
+                            }, 300); // Exactly at 50% of 0.6s animation
+                            // Remove flipping class when animation completes
+                            setTimeout(() => {
+                                if (currentCell && currentCell === cell) {
+                                    currentCell.classList.remove('flipping');
+                                }
+                            }, 600);
+                        } else {
+                            console.warn(`⚠️ Cell changed during animation: expected ${cell?.id}, found ${currentCell?.id}`);
+                        }
                     }, i * 100);
                 } else {
                     console.error(`❌ Cell not found for guess result: cell-${gameState.currentRow}-${i}`);
@@ -1966,12 +1976,20 @@
                 for (let j = 0; j < 5; j++) {
                     const cell = document.getElementById(`cell-${i}-${j}`);
                     if (cell && !cell.classList.contains('garbage')) { // Don't save garbage cells
+                        // Filter out temporary animation classes when saving
+                        const filteredClasses = cell.className.split(' ').filter(cls => 
+                            cls === 'letter-cell' || 
+                            cls === 'filled' || 
+                            cls === 'correct' || 
+                            cls === 'present' || 
+                            cls === 'absent'
+                        );
+                        
                         cellStates[`${i}-${j}`] = {
                             textContent: cell.textContent,
-                            className: cell.className,
-                            style: cell.style.cssText
+                            className: filteredClasses.join(' ')
                         };
-                        console.log(`💾 Saved cell ${i}-${j}: "${cell.textContent}" with classes: ${cell.className}`);
+                        console.log(`💾 Saved cell ${i}-${j}: "${cell.textContent}" with classes: ${filteredClasses.join(' ')}`);
                     }
                 }
             }
@@ -1993,8 +2011,7 @@
                     const savedState = cellStates[`${i}-${j}`];
                     if (savedState) {
                         cell.textContent = savedState.textContent;
-                        cell.className = savedState.className;
-                        cell.style.cssText = savedState.style;
+                        cell.className = savedState.className; // Already filtered when saved
                         console.log(`🔄 Restored cell ${i}-${j}: "${savedState.textContent}" with classes: ${savedState.className}`);
                     }
                     
