@@ -1741,6 +1741,15 @@
         function displayGuessResult(evaluation, submittedGuess) {
             const { result, correct, completed, pointsEarned, totalScore, earlyBonus } = evaluation;
             
+            console.log(`🎨 Displaying guess result for row ${gameState.currentRow}: "${submittedGuess}"`);
+            
+            // Ensure we're in the playable area
+            const playableRows = gameState.maxRows || Math.max(1, 6 - (gameState.garbageRows || 0));
+            if (gameState.currentRow >= playableRows) {
+                console.error(`❌ Cannot display guess result: current row ${gameState.currentRow} >= playable rows ${playableRows}`);
+                return;
+            }
+            
             // Make sure the submitted guess is displayed in the current row
             for (let i = 0; i < 5; i++) {
                 const cell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
@@ -1748,6 +1757,8 @@
                     // Set the letter first, then apply colors
                     cell.textContent = submittedGuess[i];
                     cell.classList.add('filled');
+                    
+                    console.log(`🎨 Setting cell ${gameState.currentRow}-${i} to "${submittedGuess[i]}" with color "${result[i]}"`);
                     
                     setTimeout(() => {
                         cell.classList.add('flipping');
@@ -1761,6 +1772,8 @@
                             cell.classList.remove('flipping');
                         }, 600);
                     }, i * 100);
+                } else {
+                    console.error(`❌ Cell not found for guess result: cell-${gameState.currentRow}-${i}`);
                 }
             }
 
@@ -1788,16 +1801,31 @@
         }
 
         function updateCurrentRow() {
+            // Ensure currentRow is within playable bounds
+            const playableRows = gameState.maxRows || Math.max(1, 6 - (gameState.garbageRows || 0));
+            if (gameState.currentRow >= playableRows) {
+                console.log(`⚠️ Current row ${gameState.currentRow} >= playable rows ${playableRows}, clamping`);
+                gameState.currentRow = Math.max(0, playableRows - 1);
+            }
+            
+            console.log(`🎮 Updating current row ${gameState.currentRow} with guess: "${gameState.currentGuess}"`);
+            
             for (let i = 0; i < 5; i++) {
                 const cell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
                 if (cell) {
                     if (i < gameState.currentGuess.length) {
                         cell.textContent = gameState.currentGuess[i];
                         cell.classList.add('filled');
+                        console.log(`📝 Set cell ${gameState.currentRow}-${i} to "${gameState.currentGuess[i]}"`);
                     } else {
                         cell.textContent = '';
                         cell.classList.remove('filled');
                     }
+                } else {
+                    console.error(`❌ Cell not found: cell-${gameState.currentRow}-${i}`);
+                    // Try to find any existing cell to debug
+                    const existingCells = document.querySelectorAll('[id^="cell-"]');
+                    console.log(`🔍 Available cells:`, Array.from(existingCells).map(c => c.id));
                 }
             }
         }
@@ -1889,9 +1917,13 @@
         function updateGameDisplay() {
             document.getElementById('playersAlive').textContent = gameState.playersAlive;
             
-            // Update garbage rows if in Battle Royale mode
+            // Update garbage rows if in Battle Royale mode AND the count has changed
             if (gameState.isBattleRoyale && gameState.garbageRows !== undefined) {
-                updateGarbageRows(gameState.garbageRows);
+                if (!gameState.lastGarbageCount || gameState.lastGarbageCount !== gameState.garbageRows) {
+                    console.log(`🗑️ Garbage count changed from ${gameState.lastGarbageCount || 0} to ${gameState.garbageRows}`);
+                    updateGarbageRows(gameState.garbageRows);
+                    gameState.lastGarbageCount = gameState.garbageRows;
+                }
             }
             
             // Show live match score during active matches, tournament total otherwise
@@ -1925,6 +1957,25 @@
             
             console.log(`🗑️ Playable rows: ${playableRows}, Garbage rows: ${garbageCount}, Total: ${totalRows}`);
             
+            // Save existing cell states from PLAYABLE rows only
+            const cellStates = {};
+            const currentPlayableRows = Math.min(6, gameState.currentRow + 2); // Save current progress + a few more rows
+            console.log(`🗑️ Saving states from ${currentPlayableRows} rows (current progress is at row ${gameState.currentRow})`);
+            
+            for (let i = 0; i < currentPlayableRows; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    if (cell && !cell.classList.contains('garbage')) { // Don't save garbage cells
+                        cellStates[`${i}-${j}`] = {
+                            textContent: cell.textContent,
+                            className: cell.className,
+                            style: cell.style.cssText
+                        };
+                        console.log(`💾 Saved cell ${i}-${j}: "${cell.textContent}" with classes: ${cell.className}`);
+                    }
+                }
+            }
+            
             // Clear the entire grid
             wordGrid.innerHTML = '';
             
@@ -1937,6 +1988,16 @@
                     const cell = document.createElement('div');
                     cell.className = 'letter-cell';
                     cell.id = `cell-${i}-${j}`;
+                    
+                    // Restore saved state if it exists
+                    const savedState = cellStates[`${i}-${j}`];
+                    if (savedState) {
+                        cell.textContent = savedState.textContent;
+                        cell.className = savedState.className;
+                        cell.style.cssText = savedState.style;
+                        console.log(`🔄 Restored cell ${i}-${j}: "${savedState.textContent}" with classes: ${savedState.className}`);
+                    }
+                    
                     row.appendChild(cell);
                 }
                 
