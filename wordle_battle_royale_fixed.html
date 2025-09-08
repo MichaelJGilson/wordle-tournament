@@ -1450,6 +1450,9 @@
             console.log('🔄 Tournament mode:', serverGameState.tournamentMode);
             console.log('🔄 Battle Royale:', serverGameState.isBattleRoyale);
             console.log('🔄 Current match:', serverGameState.currentMatch);
+            console.log('🔄 Players count:', serverGameState.players?.length);
+            console.log('🔄 Players alive:', serverGameState.playersAlive);
+            console.log('🔄 Full server state:', serverGameState);
             
             // Store previous state for comparison
             const previousRound = gameState.round;
@@ -1461,6 +1464,9 @@
             gameState.gameStatus = serverGameState.status;
             gameState.tournamentMode = serverGameState.tournamentMode;
             gameState.isBattleRoyale = serverGameState.isBattleRoyale;
+            
+            // Find current player first (used by both modes)
+            const currentPlayer = serverGameState.players?.find(p => p.id === gameState.playerId);
             
             // Handle Battle Royale mode
             if (serverGameState.isBattleRoyale) {
@@ -1484,15 +1490,13 @@
                     gameState.gameTimerFormatted = serverGameState.gameTimerFormatted;
                 }
                 
-                // Find current player for rank/score
-                const currentPlayer = serverGameState.players?.find(p => p.id === gameState.playerId);
+                // Update rank/score from current player
                 if (currentPlayer) {
                     gameState.yourRank = currentPlayer.rank;
                 }
                 
             } else {
                 // Handle Tournament mode (existing logic)
-                const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
             if (currentPlayer) {
                 gameState.score = currentPlayer.score; // Tournament total
                 gameState.currentMatchScore = currentPlayer.currentMatchScore || 0; // Live match score
