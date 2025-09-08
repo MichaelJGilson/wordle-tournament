@@ -4,7 +4,9 @@
       "Bash(npm start)",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(node server.js)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

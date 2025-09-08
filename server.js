@@ -1022,7 +1022,7 @@ class BattleRoyaleGame {
             currentRow: 0,
             guesses: [],
             completed: false,
-            currentWord: this.getRandomWord(),
+            currentWord: '', // Will be assigned when matched with opponent
             garbageRows: 0, // Number of garbage rows blocking them
             lastActivity: Date.now()
         });
@@ -1100,13 +1100,23 @@ class BattleRoyaleGame {
             this.activeMatches.set(player1.id, player2.id);
             this.activeMatches.set(player2.id, player1.id);
             
-            console.log(`🆚 Matched ${player1.name} vs ${player2.name}`);
+            // Assign the SAME word to both opponents
+            const sharedWord = this.getRandomWord();
+            const progress1 = this.playerProgress.get(player1.id);
+            const progress2 = this.playerProgress.get(player2.id);
+            
+            if (progress1) progress1.currentWord = sharedWord;
+            if (progress2) progress2.currentWord = sharedWord;
+            
+            console.log(`🆚 Matched ${player1.name} vs ${player2.name} - shared word: ${sharedWord}`);
         }
         
         // If odd number, last player gets a bye (temporary until someone finishes)
         if (shuffled.length % 2 === 1) {
             const lastPlayer = shuffled[shuffled.length - 1];
-            console.log(`⏳ ${lastPlayer.name} waiting for next opponent`);
+            const progress = this.playerProgress.get(lastPlayer.id);
+            if (progress) progress.currentWord = this.getRandomWord();
+            console.log(`⏳ ${lastPlayer.name} waiting for next opponent - word: ${progress?.currentWord}`);
         }
     }
     

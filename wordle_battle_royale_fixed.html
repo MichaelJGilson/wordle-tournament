@@ -202,6 +202,25 @@
             color: white !important;
         }
 
+        .letter-cell.garbage {
+            background-color: #dc2626 !important;
+            border-color: #dc2626 !important;
+            color: white !important;
+            font-size: 1.5rem;
+            font-weight: 900;
+        }
+
+        .letter-cell.garbage::after {
+            content: '✕';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 900;
+        }
+
         @keyframes pop {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -1869,6 +1888,11 @@
         function updateGameDisplay() {
             document.getElementById('playersAlive').textContent = gameState.playersAlive;
             
+            // Update garbage rows if in Battle Royale mode
+            if (gameState.isBattleRoyale && gameState.garbageRows !== undefined) {
+                updateGarbageRows(gameState.garbageRows);
+            }
+            
             // Show live match score during active matches, tournament total otherwise
             if (gameState.currentMatch && gameState.gameStatus === 'playing') {
                 document.getElementById('yourScore').textContent = gameState.currentMatchScore || 0;
@@ -1886,6 +1910,45 @@
 
             updateTimerDisplay();
             updatePlayersList();
+        }
+
+        function updateGarbageRows(garbageCount) {
+            console.log(`🗑️ Updating garbage rows: ${garbageCount} rows`);
+            
+            const wordGrid = document.getElementById('wordGrid');
+            if (!wordGrid) return;
+            
+            // Clear existing garbage rows
+            const existingGarbageRows = wordGrid.querySelectorAll('.word-row.garbage-row');
+            existingGarbageRows.forEach(row => row.remove());
+            
+            // Add new garbage rows at the top
+            for (let i = 0; i < garbageCount; i++) {
+                const garbageRow = document.createElement('div');
+                garbageRow.className = 'word-row garbage-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const garbageCell = document.createElement('div');
+                    garbageCell.className = 'letter-cell garbage';
+                    garbageRow.appendChild(garbageCell);
+                }
+                
+                // Insert at the beginning of the grid
+                wordGrid.insertBefore(garbageRow, wordGrid.firstChild);
+            }
+            
+            // Limit total rows to prevent overflow (6 regular rows + garbage rows)
+            const allRows = wordGrid.querySelectorAll('.word-row');
+            const maxRows = 6 + garbageCount;
+            
+            // Remove excess rows from the bottom if needed
+            for (let i = allRows.length - 1; i >= maxRows; i--) {
+                if (allRows[i] && !allRows[i].classList.contains('garbage-row')) {
+                    allRows[i].remove();
+                }
+            }
+            
+            console.log(`🗑️ Added ${garbageCount} garbage rows to grid`);
         }
 
         function updateSeriesScore() {

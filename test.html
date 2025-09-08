@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Battle Royale Test</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Battle Royale Test</h1>
+    <div id="status">Connecting...</div>
+    <input type="text" id="playerName" placeholder="Player Name" value="TestPlayer">
+    <button onclick="joinQueue()">Join Queue</button>
+    <div id="log"></div>
+
+    <script>
+        const socket = io('http://localhost:3000');
+        let log = document.getElementById('log');
+
+        function addLog(message) {
+            log.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+            console.log(message);
+        }
+
+        socket.on('connect', () => {
+            document.getElementById('status').innerHTML = 'Connected';
+            addLog('Connected to server');
+        });
+
+        socket.on('queueStatus', (data) => {
+            addLog('Queue status: ' + JSON.stringify(data));
+        });
+
+        socket.on('matchFound', (data) => {
+            addLog('Match found: ' + JSON.stringify(data));
+        });
+
+        socket.on('gameUpdate', (data) => {
+            addLog('Game update: status=' + data.status + ', players=' + (data.players ? data.players.length : 0) + ', isBattleRoyale=' + data.isBattleRoyale);
+        });
+
+        socket.on('matchError', (data) => {
+            addLog('Match error: ' + JSON.stringify(data));
+        });
+
+        function joinQueue() {
+            const playerName = document.getElementById('playerName').value;
+            addLog('Joining queue as: ' + playerName);
+            
+            socket.emit('joinPublicQueue', { playerName }, (response) => {
+                addLog('Queue response: ' + JSON.stringify(response));
+            });
+        }
+    </script>
+</body>
+</html>
