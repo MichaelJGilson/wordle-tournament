@@ -181,6 +181,8 @@
 
         .letter-cell.filled {
             border-color: #565758;
+        }
+        .letter-cell.filled.just-typed {
             animation: pop 0.1s ease-in-out;
         }
 
@@ -1680,8 +1682,19 @@
 
         function addLetter(letter) {
             if (gameState.currentGuess.length < 5 && gameState.currentRow < 6) {
+                const letterIndex = gameState.currentGuess.length;
                 gameState.currentGuess += letter;
                 updateCurrentRow();
+                
+                // Add pop animation specifically to the just-typed letter
+                const cell = document.getElementById(`cell-${gameState.currentRow}-${letterIndex}`);
+                if (cell) {
+                    cell.classList.add('just-typed');
+                    // Remove the class after animation completes
+                    setTimeout(() => {
+                        cell.classList.remove('just-typed');
+                    }, 100);
+                }
             }
         }
 
@@ -2011,43 +2024,43 @@
             // Clear the entire grid
             wordGrid.innerHTML = '';
             
-            // Create playable rows at the top
-            for (let i = 0; i < playableRows; i++) {
-                const row = document.createElement('div');
-                row.className = 'word-row';
-                
-                for (let j = 0; j < 5; j++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'letter-cell';
-                    cell.id = `cell-${i}-${j}`;
-                    
-                    // Restore saved state if it exists
-                    const savedState = cellStates[`${i}-${j}`];
-                    if (savedState) {
-                        cell.textContent = savedState.textContent;
-                        cell.className = savedState.className; // Already filtered when saved
-                        console.log(`🔄 Restored cell ${i}-${j}: "${savedState.textContent}" with classes: ${savedState.className}`);
-                    }
-                    
-                    row.appendChild(cell);
-                }
-                
-                wordGrid.appendChild(row);
-            }
-            
-            // Create garbage rows at the bottom
-            for (let i = playableRows; i < totalRows; i++) {
+            // Create garbage rows at the top
+            for (let i = 0; i < garbageCount; i++) {
                 const garbageRow = document.createElement('div');
                 garbageRow.className = 'word-row garbage-row';
                 
                 for (let j = 0; j < 5; j++) {
                     const garbageCell = document.createElement('div');
                     garbageCell.className = 'letter-cell garbage';
-                    garbageCell.id = `cell-${i}-${j}`; // Keep consistent cell IDs
+                    garbageCell.id = `garbage-${i}-${j}`;
                     garbageRow.appendChild(garbageCell);
                 }
                 
                 wordGrid.appendChild(garbageRow);
+            }
+            
+            // Create playable rows below garbage (maintaining logical row 0-5 for game logic)
+            for (let logicalRow = 0; logicalRow < playableRows; logicalRow++) {
+                const row = document.createElement('div');
+                row.className = 'word-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'letter-cell';
+                    cell.id = `cell-${logicalRow}-${j}`; // Keep logical numbering for game
+                    
+                    // Restore saved state if it exists
+                    const savedState = cellStates[`${logicalRow}-${j}`];
+                    if (savedState) {
+                        cell.textContent = savedState.textContent;
+                        cell.className = savedState.className; // Already filtered when saved
+                        console.log(`🔄 Restored cell ${logicalRow}-${j}: "${savedState.textContent}" with classes: ${savedState.className}`);
+                    }
+                    
+                    row.appendChild(cell);
+                }
+                
+                wordGrid.appendChild(row);
             }
             
             // Clamp current row to playable area
