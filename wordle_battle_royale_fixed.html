@@ -339,6 +339,31 @@
                 0 3px 6px rgba(0,0,0,0.3);
         }
 
+        /* Centered opponent section styling */
+        .opponent-section-center {
+            max-width: 300px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(145deg, #2a2a2c 0%, #1e1e20 100%);
+            border-radius: 20px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 
+                0 8px 32px rgba(0,0,0,0.4),
+                inset 0 1px 0 rgba(255,255,255,0.1),
+                inset 0 -1px 0 rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .opponent-section-center:hover {
+            transform: translateY(-2px);
+            box-shadow: 
+                0 12px 40px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.15),
+                inset 0 -1px 0 rgba(0,0,0,0.3);
+        }
+
         .opponent-name {
             font-size: 1.1rem;
             font-weight: bold;
@@ -475,6 +500,42 @@
             0% { transform: scale(0.5); opacity: 0; }
             50% { transform: scale(1.2); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes garbageDrop {
+            0% {
+                transform: translateY(-100px);
+                opacity: 0;
+                scale: 0.8;
+            }
+            70% {
+                transform: translateY(0px);
+                opacity: 1;
+                scale: 1.05;
+            }
+            85% {
+                transform: translateY(-5px);
+                scale: 0.95;
+            }
+            100% {
+                transform: translateY(0px);
+                opacity: 1;
+                scale: 1;
+            }
+        }
+
+        @keyframes gridImpact {
+            0% { transform: translateY(0px); }
+            30% { transform: translateY(3px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .garbage-row.dropping {
+            animation: garbageDrop 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .word-grid.impact {
+            animation: gridImpact 0.3s ease-out;
         }
 
         .players-list {
@@ -844,6 +905,10 @@
                     <div class="stat-number" id="yourScore">0</div>
                     <div class="stat-label" id="scoreLabel">Match Score</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="killCount">0</div>
+                    <div class="stat-label">Kills</div>
+                </div>
             </div>
 
         <!-- Series Score for Public Matches -->
@@ -859,6 +924,12 @@
                 <div class="stat-number" id="player2Wins">0</div>
                 <div class="stat-label" id="player2Name">Player 2</div>
             </div>
+        </div>
+
+        <!-- Opponent Progress (Tetris 99 style) - Moved to center -->
+        <div id="opponentSection" class="opponent-section-center hidden">
+            <div class="opponent-name" id="opponentDisplayName">Opponent</div>
+            <div class="opponent-grid" id="opponentGrid"></div>
         </div>
 
         <div class="timer" id="timer">Tournament starting...</div>
@@ -921,11 +992,6 @@
                     <div><span id="yourName">You</span> VS <span id="opponentName">Opponent</span></div>
                 </div>
 
-                <!-- Opponent Progress (Tetris 99 style) -->
-                <div id="opponentSection" class="opponent-section hidden">
-                    <div class="opponent-name" id="opponentDisplayName">Opponent</div>
-                    <div class="opponent-grid" id="opponentGrid"></div>
-                </div>
 
                 <div class="players-list">
                     <h3 class="players-title">Players Remaining</h3>
@@ -2024,7 +2090,7 @@
             // Clear the entire grid
             wordGrid.innerHTML = '';
             
-            // Create garbage rows at the top
+            // Create garbage rows at the top with sequential drop animation
             for (let i = 0; i < garbageCount; i++) {
                 const garbageRow = document.createElement('div');
                 garbageRow.className = 'word-row garbage-row';
@@ -2037,6 +2103,26 @@
                 }
                 
                 wordGrid.appendChild(garbageRow);
+                
+                // Add drop animation with staggered timing
+                setTimeout(() => {
+                    garbageRow.classList.add('dropping');
+                    
+                    // Trigger grid impact when the last garbage row lands
+                    if (i === garbageCount - 1) {
+                        setTimeout(() => {
+                            wordGrid.classList.add('impact');
+                            setTimeout(() => {
+                                wordGrid.classList.remove('impact');
+                            }, 300);
+                        }, 420); // 70% of 600ms animation
+                    }
+                    
+                    // Remove animation class after completion
+                    setTimeout(() => {
+                        garbageRow.classList.remove('dropping');
+                    }, 600);
+                }, i * 100); // Stagger each row by 100ms
             }
             
             // Create playable rows below garbage (maintaining logical row 0-5 for game logic)
