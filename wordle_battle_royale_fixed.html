@@ -1741,28 +1741,30 @@
         function displayGuessResult(evaluation, submittedGuess) {
             const { result, correct, completed, pointsEarned, totalScore, earlyBonus } = evaluation;
             
-            console.log(`🎨 Displaying guess result for row ${gameState.currentRow}: "${submittedGuess}"`);
+            // Capture the current row BEFORE it gets changed
+            const animationRow = gameState.currentRow;
+            console.log(`🎨 Displaying guess result for row ${animationRow}: "${submittedGuess}"`);
             
             // Ensure we're in the playable area
             const playableRows = gameState.maxRows || Math.max(1, 6 - (gameState.garbageRows || 0));
-            if (gameState.currentRow >= playableRows) {
-                console.error(`❌ Cannot display guess result: current row ${gameState.currentRow} >= playable rows ${playableRows}`);
+            if (animationRow >= playableRows) {
+                console.error(`❌ Cannot display guess result: current row ${animationRow} >= playable rows ${playableRows}`);
                 return;
             }
             
             // Make sure the submitted guess is displayed in the current row
             for (let i = 0; i < 5; i++) {
-                const cell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
+                const cell = document.getElementById(`cell-${animationRow}-${i}`);
                 if (cell) {
                     // Set the letter first, then apply colors
                     cell.textContent = submittedGuess[i];
                     cell.classList.add('filled');
                     
-                    console.log(`🎨 Setting cell ${gameState.currentRow}-${i} to "${submittedGuess[i]}" with color "${result[i]}"`);
+                    console.log(`🎨 Setting cell ${animationRow}-${i} to "${submittedGuess[i]}" with color "${result[i]}"`);
                     
                     setTimeout(() => {
-                        // Double-check cell still exists and is the right one
-                        const currentCell = document.getElementById(`cell-${gameState.currentRow}-${i}`);
+                        // Use the captured row number, not gameState.currentRow which may have changed
+                        const currentCell = document.getElementById(`cell-${animationRow}-${i}`);
                         if (currentCell && currentCell === cell) {
                             currentCell.classList.add('flipping');
                             // Change color at the exact midpoint of the flip animation
@@ -1783,7 +1785,7 @@
                         }
                     }, i * 100);
                 } else {
-                    console.error(`❌ Cell not found for guess result: cell-${gameState.currentRow}-${i}`);
+                    console.error(`❌ Cell not found for guess result: cell-${animationRow}-${i}`);
                 }
             }
 
