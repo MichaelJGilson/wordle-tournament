@@ -2459,8 +2459,11 @@
             // Update your rank 
             document.getElementById('yourRank').textContent = gameState.yourRank || 1;
             
-            // Update round number (Battle Royale doesn't have rounds, so show 1 or hide)
-            document.getElementById('roundNumber').textContent = 1;
+            // Update round number (Battle Royale doesn't have rounds, element may not exist)
+            const roundNumberEl = document.getElementById('roundNumber');
+            if (roundNumberEl) {
+                roundNumberEl.textContent = 1;
+            }
             
             // Update score (Battle Royale may not have traditional scores)
             const currentPlayer = gameState.players?.find(p => p.id === gameState.playerId);
