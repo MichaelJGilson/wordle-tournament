@@ -1492,8 +1492,7 @@
                 
             } else {
                 // Handle Tournament mode (existing logic)
-
-            const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
+                const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
             if (currentPlayer) {
                 gameState.score = currentPlayer.score; // Tournament total
                 gameState.currentMatchScore = currentPlayer.currentMatchScore || 0; // Live match score
@@ -1508,6 +1507,7 @@
                         updateCurrentRow();
                     }
                 }
+            }
             }
 
             // Check for new round or new match BEFORE updating the state
