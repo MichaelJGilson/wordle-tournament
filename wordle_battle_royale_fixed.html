@@ -542,6 +542,11 @@
             margin-bottom: 30px;
         }
 
+        .opponent-section {
+            margin: 30px 0;
+            text-align: center;
+        }
+
         .players-title {
             font-size: 1.2rem;
             font-weight: bold;
@@ -584,6 +589,18 @@
 
         .game-controls {
             text-align: center;
+        }
+
+        .build-number {
+            position: fixed;
+            bottom: 10px;
+            right: 15px;
+            font-size: 0.7rem;
+            color: #666;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            z-index: 1000;
         }
 
         .btn {
@@ -926,11 +943,6 @@
             </div>
         </div>
 
-        <!-- Opponent Progress (Tetris 99 style) - Moved to center -->
-        <div id="opponentSection" class="opponent-section-center hidden">
-            <div class="opponent-name" id="opponentDisplayName">Opponent</div>
-            <div class="opponent-grid" id="opponentGrid"></div>
-        </div>
 
         <div class="timer" id="timer">Tournament starting...</div>
 
@@ -996,6 +1008,11 @@
                 <div class="players-list">
                     <h3 class="players-title">Players Remaining</h3>
                     <div id="playersList"></div>
+                </div>
+
+                <div class="opponent-section">
+                    <h3 class="players-title">Opponent</h3>
+                    <div id="opponentGrid" class="opponent-grid"></div>
                 </div>
 
                 <div class="game-controls">
@@ -2524,5 +2541,8 @@
             }
         });
     </script>
+    
+    <!-- Build Number -->
+    <div class="build-number">v1.0.1</div>
 </body>
 </html>
