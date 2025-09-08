@@ -1495,7 +1495,8 @@
                 if (serverGameState.playerProgress) {
                     gameState.currentRow = serverGameState.playerProgress.currentRow || 0;
                     gameState.garbageRows = serverGameState.playerProgress.garbageRows || 0;
-                    gameState.maxRows = serverGameState.playerProgress.maxRows || 6;
+                    gameState.maxRows = serverGameState.playerProgress.maxRows || 6; // Playable rows
+                    gameState.totalRows = serverGameState.playerProgress.totalRows || 6; // Visual rows
                 }
                 
                 // Update opponent info
@@ -1913,42 +1914,57 @@
         }
 
         function updateGarbageRows(garbageCount) {
-            console.log(`🗑️ Updating garbage rows: ${garbageCount} rows`);
+            console.log(`🗑️ Updating garbage rows: ${garbageCount} rows (Tetris 99 style)`);
             
             const wordGrid = document.getElementById('wordGrid');
             if (!wordGrid) return;
             
-            // Clear existing garbage rows
-            const existingGarbageRows = wordGrid.querySelectorAll('.word-row.garbage-row');
-            existingGarbageRows.forEach(row => row.remove());
+            // Use server data if available, otherwise calculate
+            const totalRows = gameState.totalRows || 6;
+            const playableRows = gameState.maxRows || Math.max(1, totalRows - garbageCount);
             
-            // Add new garbage rows at the top
-            for (let i = 0; i < garbageCount; i++) {
+            console.log(`🗑️ Playable rows: ${playableRows}, Garbage rows: ${garbageCount}, Total: ${totalRows}`);
+            
+            // Clear the entire grid
+            wordGrid.innerHTML = '';
+            
+            // Create playable rows at the top
+            for (let i = 0; i < playableRows; i++) {
+                const row = document.createElement('div');
+                row.className = 'word-row';
+                
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'letter-cell';
+                    cell.id = `cell-${i}-${j}`;
+                    row.appendChild(cell);
+                }
+                
+                wordGrid.appendChild(row);
+            }
+            
+            // Create garbage rows at the bottom
+            for (let i = playableRows; i < totalRows; i++) {
                 const garbageRow = document.createElement('div');
                 garbageRow.className = 'word-row garbage-row';
                 
                 for (let j = 0; j < 5; j++) {
                     const garbageCell = document.createElement('div');
                     garbageCell.className = 'letter-cell garbage';
+                    garbageCell.id = `cell-${i}-${j}`; // Keep consistent cell IDs
                     garbageRow.appendChild(garbageCell);
                 }
                 
-                // Insert at the beginning of the grid
-                wordGrid.insertBefore(garbageRow, wordGrid.firstChild);
+                wordGrid.appendChild(garbageRow);
             }
             
-            // Limit total rows to prevent overflow (6 regular rows + garbage rows)
-            const allRows = wordGrid.querySelectorAll('.word-row');
-            const maxRows = 6 + garbageCount;
-            
-            // Remove excess rows from the bottom if needed
-            for (let i = allRows.length - 1; i >= maxRows; i--) {
-                if (allRows[i] && !allRows[i].classList.contains('garbage-row')) {
-                    allRows[i].remove();
-                }
+            // Clamp current row to playable area
+            if (gameState.currentRow >= playableRows) {
+                gameState.currentRow = Math.max(0, playableRows - 1);
+                console.log(`🎮 Current row clamped to playable area: ${gameState.currentRow}`);
             }
             
-            console.log(`🗑️ Added ${garbageCount} garbage rows to grid`);
+            console.log(`🗑️ Grid rebuilt: ${playableRows} playable + ${garbageCount} garbage = ${totalRows} total rows`);
         }
 
         function updateSeriesScore() {

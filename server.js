@@ -1181,9 +1181,14 @@ class BattleRoyaleGame {
             console.log(`✅ ${player.name} completed word in ${progress.currentRow} attempts, sent ${garbageRows} garbage`);
         }
         
-        // Check if player failed (used all 6 attempts + garbage)
-        const maxAttempts = 6 + (this.garbageQueue.get(playerId)?.length || 0);
+        // Check if player failed (garbage blocks reduce available attempts)
+        const garbageRows = this.garbageQueue.get(playerId)?.length || 0;
+        const maxAttempts = Math.max(1, 6 - garbageRows); // Garbage reduces attempts, minimum 1
+        
+        console.log(`🎮 ${player.name}: Row ${progress.currentRow}, Max attempts: ${maxAttempts}, Garbage blocking: ${garbageRows}`);
+        
         if (progress.currentRow >= maxAttempts && !isCorrect) {
+            console.log(`💀 ${player.name} eliminated - used all ${maxAttempts} attempts (${garbageRows} garbage rows blocking)`);
             this.eliminatePlayer(playerId);
         }
         
@@ -1383,7 +1388,8 @@ class BattleRoyaleGame {
                 currentRow: progress?.currentRow || 0,
                 completed: progress?.completed || false,
                 garbageRows: garbageCount,
-                maxRows: 6 + garbageCount
+                maxRows: Math.max(1, 6 - garbageCount), // Playable rows
+                totalRows: 6 // Always 6 total visual rows
             };
             
             if (opponent) {
