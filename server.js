@@ -289,11 +289,15 @@ function processPublicMatchmakingQueue() {
                     setTimeout(() => {
                         if (publicBattleRoyaleGame.status === 'waiting') {
                             console.log(`🚀 Auto-starting Battle Royale with ${publicBattleRoyaleGame.players.size} players`);
-                            publicBattleRoyaleGame.startGame(publicBattleRoyaleGame.hostId);
+                            const startResult = publicBattleRoyaleGame.startGame(publicBattleRoyaleGame.hostId);
                             
-                            // Broadcast to all players
-                            const gameState = publicBattleRoyaleGame.broadcastGameState();
-                            io.to(publicBattleRoyaleGame.id).emit('gameUpdate', gameState);
+                            if (startResult.success) {
+                                // Broadcast to all players (Battle Royale handles individual updates internally)
+                                publicBattleRoyaleGame.broadcastGameState();
+                                console.log(`✅ Battle Royale started successfully`);
+                            } else {
+                                console.log(`❌ Failed to start Battle Royale: ${startResult.error}`);
+                            }
                         }
                     }, 3000); // 3 second delay to allow more players to join
                 }
