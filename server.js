@@ -1362,7 +1362,18 @@ class BattleRoyaleGame {
         return result;
     }
     
-    broadcastGameState(requestingPlayerId = null) {
+    broadcastGameState() {
+        // Send personalized game state to each player
+        Array.from(this.players.values()).forEach(player => {
+            const personalizedState = this.getGameStateForPlayer(player.id);
+            const socket = io.sockets.sockets.get(player.socketId);
+            if (socket) {
+                socket.emit('gameUpdate', personalizedState);
+            }
+        });
+    }
+    
+    getGameStateForPlayer(playerId) {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         
         const gameState = {
@@ -1382,31 +1393,29 @@ class BattleRoyaleGame {
         };
         
         // Add requesting player's specific information
-        if (requestingPlayerId) {
-            const progress = this.playerProgress.get(requestingPlayerId);
-            const opponentId = this.activeMatches.get(requestingPlayerId);
-            const opponent = opponentId ? this.players.get(opponentId) : null;
-            const garbageCount = this.garbageQueue.get(requestingPlayerId)?.length || 0;
-            
-            gameState.playerProgress = {
-                currentRow: progress?.currentRow || 0,
-                completed: progress?.completed || false,
-                garbageRows: garbageCount,
-                maxRows: Math.max(1, 6 - garbageCount), // Playable rows
-                totalRows: 6 // Always 6 total visual rows
+        const progress = this.playerProgress.get(playerId);
+        const opponentId = this.activeMatches.get(playerId);
+        const opponent = opponentId ? this.players.get(opponentId) : null;
+        const garbageCount = this.garbageQueue.get(playerId)?.length || 0;
+        
+        gameState.playerProgress = {
+            currentRow: progress?.currentRow || 0,
+            completed: progress?.completed || false,
+            garbageRows: garbageCount,
+            maxRows: Math.max(1, 6 - garbageCount), // Playable rows
+            totalRows: 6 // Always 6 total visual rows
+        };
+        
+        if (opponent) {
+            const opponentProgress = this.playerProgress.get(opponentId);
+            gameState.currentOpponent = {
+                id: opponent.id,
+                name: opponent.name,
+                progress: opponentProgress?.guesses.map(g => ({
+                    row: g.row,
+                    result: g.result
+                })) || []
             };
-            
-            if (opponent) {
-                const opponentProgress = this.playerProgress.get(opponentId);
-                gameState.currentOpponent = {
-                    id: opponent.id,
-                    name: opponent.name,
-                    progress: opponentProgress?.guesses.map(g => ({
-                        row: g.row,
-                        result: g.result
-                    })) || []
-                };
-            }
         }
         
         return gameState;
@@ -1586,22 +1595,7 @@ io.on('connection', (socket) => {
                 });
                 
                 // Broadcast updated state to all players
-                const gameState = game.broadcastGameState();
-                io.to(playerInfo.gameId).emit('gameUpdate', gameState);
-                
-                // Send personalized updates to player and opponent
-                const personalizedState = game.broadcastGameState(playerInfo.playerId);
-                io.to(socket.id).emit('gameUpdate', personalizedState);
-                
-                // Send update to opponent if they exist
-                const opponentId = game.activeMatches.get(playerInfo.playerId);
-                if (opponentId) {
-                    const opponent = game.players.get(opponentId);
-                    if (opponent) {
-                        const opponentState = game.broadcastGameState(opponentId);
-                        io.to(opponent.socketId).emit('gameUpdate', opponentState);
-                    }
-                }
+                game.broadcastGameState();
             } else {
                 callback({ success: false, error: result.error });
             }
