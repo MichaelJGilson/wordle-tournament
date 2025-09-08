@@ -991,6 +991,414 @@ class Game {
     }
 }
 
+// Battle Royale Game class for Tetris 99-style gameplay
+class BattleRoyaleGame {
+    constructor(id, maxPlayers = 100) {
+        this.id = id;
+        this.status = 'waiting'; // waiting, playing, ended
+        this.players = new Map(); // playerId -> player object
+        this.activeMatches = new Map(); // playerId -> opponent playerId
+        this.playerProgress = new Map(); // playerId -> progress object
+        this.garbageQueue = new Map(); // playerId -> array of garbage rows
+        this.maxPlayers = maxPlayers;
+        this.gameTimer = 15 * 60; // 15 minutes in seconds
+        this.timerInterval = null;
+        this.hostId = null;
+        this.isBattleRoyale = true;
+        
+        // Save to database
+        db.run(`INSERT INTO games (id, max_players) VALUES (?, ?)`, [id, maxPlayers]);
+        
+        console.log(`🎮 Created Battle Royale game: ${id} (max ${maxPlayers} players, 15min timer)`);
+    }
+    
+    addPlayer(socketId, name) {
+        if (this.status !== 'waiting') {
+            return { success: false, error: 'Game already in progress' };
+        }
+        
+        if (this.players.size >= this.maxPlayers) {
+            return { success: false, error: 'Game is full' };
+        }
+        
+        const playerId = generateShortId(8);
+        const player = {
+            id: playerId,
+            name: name,
+            socketId: socketId,
+            alive: true,
+            rank: null,
+            joinTime: Date.now()
+        };
+        
+        this.players.set(playerId, player);
+        
+        // Set first player as host
+        if (!this.hostId) {
+            this.hostId = playerId;
+        }
+        
+        // Initialize player progress
+        this.playerProgress.set(playerId, {
+            currentRow: 0,
+            guesses: [],
+            completed: false,
+            currentWord: this.getRandomWord(),
+            garbageRows: 0, // Number of garbage rows blocking them
+            lastActivity: Date.now()
+        });
+        
+        // Initialize garbage queue
+        this.garbageQueue.set(playerId, []);
+        
+        // Track in global map
+        playerSockets.set(socketId, { gameId: this.id, playerId: playerId, name: name });
+        
+        // Save to database
+        db.run(`INSERT INTO players (id, game_id, name, socket_id, alive) VALUES (?, ?, ?, ?, 1)`,
+            [playerId, this.id, name, socketId]);
+        
+        console.log(`👤 Player ${name} (${playerId}) joined Battle Royale game ${this.id}`);
+        
+        return { success: true, playerId: playerId, player: player, isHost: playerId === this.hostId };
+    }
+    
+    startGame(requestingPlayerId = null) {
+        if (this.status !== 'waiting') {
+            return { success: false, error: 'Game already started or ended' };
+        }
+        
+        if (this.players.size < 2) {
+            return { success: false, error: 'At least 2 players required to start battle royale' };
+        }
+        
+        // Only host can start
+        if (requestingPlayerId !== this.hostId) {
+            return { success: false, error: 'Only the host can start the game' };
+        }
+        
+        this.status = 'playing';
+        
+        // Start the global game timer
+        this.startGameTimer();
+        
+        // Assign initial random opponents
+        this.assignRandomOpponents();
+        
+        console.log(`🎮 Battle Royale game ${this.id} started with ${this.players.size} players`);
+        
+        return { success: true };
+    }
+    
+    startGameTimer() {
+        this.timerInterval = setInterval(() => {
+            this.gameTimer--;
+            
+            if (this.gameTimer <= 0) {
+                this.endGame();
+            }
+            
+            // Broadcast timer update every 10 seconds
+            if (this.gameTimer % 10 === 0) {
+                this.broadcastGameState();
+            }
+        }, 1000);
+    }
+    
+    assignRandomOpponents() {
+        const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+        
+        // Clear existing matches
+        this.activeMatches.clear();
+        
+        // Shuffle players and pair them up
+        const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
+        
+        for (let i = 0; i < shuffled.length - 1; i += 2) {
+            const player1 = shuffled[i];
+            const player2 = shuffled[i + 1];
+            
+            this.activeMatches.set(player1.id, player2.id);
+            this.activeMatches.set(player2.id, player1.id);
+            
+            console.log(`🆚 Matched ${player1.name} vs ${player2.name}`);
+        }
+        
+        // If odd number, last player gets a bye (temporary until someone finishes)
+        if (shuffled.length % 2 === 1) {
+            const lastPlayer = shuffled[shuffled.length - 1];
+            console.log(`⏳ ${lastPlayer.name} waiting for next opponent`);
+        }
+    }
+    
+    getRandomWord() {
+        return ANSWER_WORDS[Math.floor(Math.random() * ANSWER_WORDS.length)];
+    }
+    
+    makeGuess(playerId, guess) {
+        if (this.status !== 'playing') {
+            return { success: false, error: 'Game not in progress' };
+        }
+        
+        const player = this.players.get(playerId);
+        if (!player || !player.alive) {
+            return { success: false, error: 'Player not found or eliminated' };
+        }
+        
+        const progress = this.playerProgress.get(playerId);
+        if (!progress || progress.completed) {
+            return { success: false, error: 'Invalid player progress' };
+        }
+        
+        const target = progress.currentWord;
+        const result = this.evaluateGuess(guess, target);
+        
+        progress.guesses.push({
+            guess: guess,
+            result: result,
+            row: progress.currentRow
+        });
+        
+        progress.currentRow++;
+        progress.lastActivity = Date.now();
+        
+        const isCorrect = guess === target;
+        
+        if (isCorrect) {
+            progress.completed = true;
+            
+            // Calculate garbage rows to send (6 - attempts used)
+            const garbageRows = 6 - progress.currentRow;
+            
+            // Send garbage to opponent
+            const opponentId = this.activeMatches.get(playerId);
+            if (opponentId && garbageRows > 0) {
+                this.sendGarbage(opponentId, garbageRows, progress.currentRow === 1);
+            }
+            
+            // Give player a new word and find new opponent
+            this.resetPlayerForNewRound(playerId);
+            
+            console.log(`✅ ${player.name} completed word in ${progress.currentRow} attempts, sent ${garbageRows} garbage`);
+        }
+        
+        // Check if player failed (used all 6 attempts + garbage)
+        const maxAttempts = 6 + (this.garbageQueue.get(playerId)?.length || 0);
+        if (progress.currentRow >= maxAttempts && !isCorrect) {
+            this.eliminatePlayer(playerId);
+        }
+        
+        return {
+            success: true,
+            result: result,
+            correct: isCorrect,
+            completed: progress.completed,
+            currentRow: progress.currentRow,
+            garbageRows: this.garbageQueue.get(playerId)?.length || 0
+        };
+    }
+    
+    sendGarbage(targetPlayerId, garbageCount, isInstantKO = false) {
+        if (isInstantKO) {
+            // First-try completion = instant KO
+            this.eliminatePlayer(targetPlayerId);
+            console.log(`💀 ${this.players.get(targetPlayerId)?.name} instantly eliminated!`);
+            return;
+        }
+        
+        const garbageQueue = this.garbageQueue.get(targetPlayerId) || [];
+        
+        // Add garbage rows
+        for (let i = 0; i < garbageCount; i++) {
+            garbageQueue.push({ type: 'garbage', timestamp: Date.now() });
+        }
+        
+        this.garbageQueue.set(targetPlayerId, garbageQueue);
+        
+        console.log(`🗑️ Sent ${garbageCount} garbage rows to ${this.players.get(targetPlayerId)?.name}`);
+    }
+    
+    resetPlayerForNewRound(playerId) {
+        const progress = this.playerProgress.get(playerId);
+        if (progress) {
+            progress.currentRow = 0;
+            progress.guesses = [];
+            progress.completed = false;
+            progress.currentWord = this.getRandomWord();
+        }
+        
+        // Find new opponent
+        this.findNewOpponent(playerId);
+    }
+    
+    findNewOpponent(playerId) {
+        const alivePlayers = Array.from(this.players.values())
+            .filter(p => p.alive && p.id !== playerId && !this.activeMatches.has(p.id));
+        
+        if (alivePlayers.length > 0) {
+            const newOpponent = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+            
+            this.activeMatches.set(playerId, newOpponent.id);
+            this.activeMatches.set(newOpponent.id, playerId);
+            
+            console.log(`🔄 ${this.players.get(playerId).name} rematched with ${newOpponent.name}`);
+        }
+    }
+    
+    eliminatePlayer(playerId) {
+        const player = this.players.get(playerId);
+        if (player) {
+            player.alive = false;
+            player.rank = this.getAlivePlayersCount() + 1;
+            
+            // Remove from active matches
+            const opponentId = this.activeMatches.get(playerId);
+            if (opponentId) {
+                this.activeMatches.delete(playerId);
+                this.activeMatches.delete(opponentId);
+                
+                // Find new opponent for the remaining player
+                this.findNewOpponent(opponentId);
+            }
+            
+            // Update database
+            db.run(`UPDATE players SET alive = 0, rank = ? WHERE id = ?`, [player.rank, playerId]);
+            
+            console.log(`💀 ${player.name} eliminated (Rank: ${player.rank})`);
+            
+            // Check if game should end
+            this.checkGameEnd();
+        }
+    }
+    
+    getAlivePlayersCount() {
+        return Array.from(this.players.values()).filter(p => p.alive).length;
+    }
+    
+    checkGameEnd() {
+        const aliveCount = this.getAlivePlayersCount();
+        
+        if (aliveCount <= 1) {
+            this.endGame();
+        }
+    }
+    
+    endGame() {
+        if (this.status === 'ended') return;
+        
+        this.status = 'ended';
+        
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+        
+        // Set final rankings
+        const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+        alivePlayers.forEach((player, index) => {
+            player.rank = index + 1;
+            db.run(`UPDATE players SET rank = ? WHERE id = ?`, [player.rank, player.id]);
+        });
+        
+        console.log(`🏁 Battle Royale game ${this.id} ended`);
+        
+        this.broadcastGameState();
+    }
+    
+    evaluateGuess(guess, target) {
+        const result = [];
+        const targetLetters = target.split('');
+        const guessLetters = guess.split('');
+        const usedPositions = new Set();
+        
+        // First pass: check for correct positions (green)
+        for (let i = 0; i < 5; i++) {
+            if (guessLetters[i] === targetLetters[i]) {
+                result[i] = 'correct';
+                usedPositions.add(i);
+            }
+        }
+        
+        // Second pass: check for wrong positions (yellow)
+        for (let i = 0; i < 5; i++) {
+            if (result[i] !== 'correct') {
+                const letter = guessLetters[i];
+                let found = false;
+                
+                for (let j = 0; j < 5; j++) {
+                    if (!usedPositions.has(j) && targetLetters[j] === letter) {
+                        result[i] = 'present';
+                        usedPositions.add(j);
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    result[i] = 'absent';
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    broadcastGameState(requestingPlayerId = null) {
+        const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
+        
+        const gameState = {
+            gameId: this.id,
+            status: this.status,
+            playersAlive: alivePlayers.length,
+            totalPlayers: this.players.size,
+            gameTimer: this.gameTimer,
+            gameTimerFormatted: this.formatTime(this.gameTimer),
+            isBattleRoyale: true,
+            players: alivePlayers.map((player, index) => ({
+                id: player.id,
+                name: player.name,
+                alive: player.alive,
+                rank: player.alive ? index + 1 : player.rank
+            }))
+        };
+        
+        // Add requesting player's specific information
+        if (requestingPlayerId) {
+            const progress = this.playerProgress.get(requestingPlayerId);
+            const opponentId = this.activeMatches.get(requestingPlayerId);
+            const opponent = opponentId ? this.players.get(opponentId) : null;
+            const garbageCount = this.garbageQueue.get(requestingPlayerId)?.length || 0;
+            
+            gameState.playerProgress = {
+                currentRow: progress?.currentRow || 0,
+                completed: progress?.completed || false,
+                garbageRows: garbageCount,
+                maxRows: 6 + garbageCount
+            };
+            
+            if (opponent) {
+                const opponentProgress = this.playerProgress.get(opponentId);
+                gameState.currentOpponent = {
+                    id: opponent.id,
+                    name: opponent.name,
+                    progress: opponentProgress?.guesses.map(g => ({
+                        row: g.row,
+                        result: g.result
+                    })) || []
+                };
+            }
+        }
+        
+        return gameState;
+    }
+    
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+}
+
 // Socket.io connection handling
 io.on('connection', (socket) => {
     console.log(`🔌 Player connected: ${socket.id}`);
@@ -1027,6 +1435,45 @@ io.on('connection', (socket) => {
             }
         } catch (error) {
             console.error(`🔥 Error in createGame:`, error);
+            callback({ success: false, error: 'Server error occurred' });
+        }
+    });
+
+    // Create Battle Royale game
+    socket.on('createBattleRoyale', (data, callback) => {
+        console.log(`🔥 CreateBattleRoyale request from ${socket.id}:`, data);
+        
+        try {
+            const { playerName, maxPlayers = 100 } = data;
+            
+            if (!playerName || playerName.trim().length === 0) {
+                console.log(`❌ Invalid player name: "${playerName}"`);
+                callback({ success: false, error: 'Player name is required' });
+                return;
+            }
+            
+            const gameId = generateShortId(6);
+            const game = new BattleRoyaleGame(gameId, maxPlayers);
+            
+            activeGames.set(gameId, game);
+            socket.join(gameId);
+            
+            const result = game.addPlayer(socket.id, playerName);
+            console.log(`🎯 AddPlayer to Battle Royale result:`, result);
+            
+            if (result.success) {
+                console.log(`✅ Battle Royale game created! GameID: ${gameId}, PlayerID: ${result.playerId}`);
+                callback({ success: true, gameId: gameId, playerId: result.playerId, isBattleRoyale: true });
+                
+                // Broadcast game state
+                const gameState = game.broadcastGameState();
+                io.to(gameId).emit('gameUpdate', gameState);
+            } else {
+                console.log(`❌ Failed to add player to Battle Royale:`, result.error);
+                callback({ success: false, error: result.error });
+            }
+        } catch (error) {
+            console.error(`🔥 Error in createBattleRoyale:`, error);
             callback({ success: false, error: 'Server error occurred' });
         }
     });
@@ -1094,26 +1541,73 @@ io.on('connection', (socket) => {
             return;
         }
 
-        if (!game.validateGuess(guess)) {
+        // Check if word is valid (both game types use same validation)
+        if (!VALID_WORDS.includes(guess.toUpperCase())) {
             callback({ success: false, error: 'Invalid word' });
             return;
         }
 
-        const result = game.evaluateGuess(playerInfo.playerId, guess.toUpperCase());
-        if (result) {
-            callback({ success: true, evaluation: result });
+        let result;
+        
+        if (game.isBattleRoyale) {
+            // Battle Royale mode
+            result = game.makeGuess(playerInfo.playerId, guess.toUpperCase());
             
-            // Broadcast updated state to both players in the match
-            const playerMatch = game.getPlayerMatch(playerInfo.playerId);
-            if (playerMatch) {
-                // Send updated state to both players in this match
-                [playerMatch.player1, playerMatch.player2].forEach(matchPlayer => {
-                    const personalizedState = game.getGameState(matchPlayer.id);
-                    io.to(matchPlayer.socketId).emit('gameUpdate', personalizedState);
+            if (result.success) {
+                callback({ 
+                    success: true, 
+                    evaluation: { 
+                        result: result.result,
+                        correct: result.correct,
+                        completed: result.completed,
+                        currentRow: result.currentRow,
+                        garbageRows: result.garbageRows
+                    }
                 });
+                
+                // Broadcast updated state to all players
+                const gameState = game.broadcastGameState();
+                io.to(playerInfo.gameId).emit('gameUpdate', gameState);
+                
+                // Send personalized updates to player and opponent
+                const personalizedState = game.broadcastGameState(playerInfo.playerId);
+                io.to(socket.id).emit('gameUpdate', personalizedState);
+                
+                // Send update to opponent if they exist
+                const opponentId = game.activeMatches.get(playerInfo.playerId);
+                if (opponentId) {
+                    const opponent = game.players.get(opponentId);
+                    if (opponent) {
+                        const opponentState = game.broadcastGameState(opponentId);
+                        io.to(opponent.socketId).emit('gameUpdate', opponentState);
+                    }
+                }
+            } else {
+                callback({ success: false, error: result.error });
             }
         } else {
-            callback({ success: false, error: 'Could not process guess' });
+            // Tournament mode (existing logic)
+            if (!game.validateGuess(guess)) {
+                callback({ success: false, error: 'Invalid word' });
+                return;
+            }
+
+            result = game.evaluateGuess(playerInfo.playerId, guess.toUpperCase());
+            if (result) {
+                callback({ success: true, evaluation: result });
+                
+                // Broadcast updated state to both players in the match
+                const playerMatch = game.getPlayerMatch(playerInfo.playerId);
+                if (playerMatch) {
+                    // Send updated state to both players in this match
+                    [playerMatch.player1, playerMatch.player2].forEach(matchPlayer => {
+                        const personalizedState = game.getGameState(matchPlayer.id);
+                        io.to(matchPlayer.socketId).emit('gameUpdate', personalizedState);
+                    });
+                }
+            } else {
+                callback({ success: false, error: 'Could not process guess' });
+            }
         }
     });
 
