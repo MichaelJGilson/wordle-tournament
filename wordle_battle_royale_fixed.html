@@ -2044,24 +2044,39 @@
             document.getElementById('tournamentInfo').classList.add('hidden');
             document.getElementById('matchInfo').classList.add('hidden');
             
+            // Always show opponent section in Battle Royale (even if no specific opponent yet)
+            document.getElementById('opponentSection').classList.remove('hidden');
+            
+            // Set up opponent grid if needed
+            const opponentGrid = document.getElementById('opponentGrid');
+            if (!opponentGrid || opponentGrid.children.length === 0) {
+                setupOpponentGrid();
+            }
+            
             // Show opponent info if we have a current opponent
             if (gameState.currentOpponent) {
                 console.log('🎯 Showing opponent:', gameState.currentOpponent.name);
-                document.getElementById('opponentSection').classList.remove('hidden');
                 document.getElementById('opponentDisplayName').textContent = gameState.currentOpponent.name;
-                
-                // Set up opponent grid if needed
-                const opponentGrid = document.getElementById('opponentGrid');
-                if (!opponentGrid || opponentGrid.children.length === 0) {
-                    setupOpponentGrid();
-                }
                 
                 // Update opponent progress if available
                 if (gameState.currentOpponent.progress) {
                     updateOpponentGrid(gameState.currentOpponent.progress);
                 }
             } else {
-                document.getElementById('opponentSection').classList.add('hidden');
+                // Show placeholder for no opponent yet
+                document.getElementById('opponentDisplayName').textContent = 'Searching for opponent...';
+                
+                // Reset opponent grid to empty state
+                if (opponentGrid) {
+                    for (let i = 0; i < 6; i++) {
+                        for (let j = 0; j < 5; j++) {
+                            const cell = document.getElementById(`opponent-cell-${i}-${j}`);
+                            if (cell) {
+                                cell.classList.remove('correct', 'present', 'absent');
+                            }
+                        }
+                    }
+                }
             }
             
             // Update global timer display for Battle Royale
