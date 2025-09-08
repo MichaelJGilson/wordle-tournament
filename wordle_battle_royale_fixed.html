@@ -940,11 +940,11 @@
         </div>
 
 
-        <div class="timer" id="timer">Tournament starting...</div>
+        <div class="timer" id="timer">Connecting to Battle Royale...</div>
 
         <div class="game-area">
             <div class="wordle-container">
-                <div id="message" class="message info">Tournament mode: Beat your opponent in 1v1 matches to advance!</div>
+                <div id="message" class="message info">Battle Royale: Survive and outlast all other players!</div>
                 
                 <div class="word-grid" id="wordGrid"></div>
 
@@ -2319,12 +2319,17 @@
         function updateBattleRoyaleDisplay(serverGameState) {
             console.log('🔥 Updating Battle Royale UI elements');
             
-            // Hide tournament-specific elements
-            document.getElementById('tournamentInfo').classList.add('hidden');
-            document.getElementById('matchInfo').classList.add('hidden');
+            // Hide tournament-specific elements (matchInfo still exists in sidebar)
+            const matchInfo = document.getElementById('matchInfo');
+            if (matchInfo) {
+                matchInfo.classList.add('hidden');
+            }
             
-            // Always show opponent section in Battle Royale (even if no specific opponent yet)
-            document.getElementById('opponentSection').classList.remove('hidden');
+            // Always show opponent section in Battle Royale (it's now in the sidebar)
+            const opponentSection = document.querySelector('.opponent-section');
+            if (opponentSection) {
+                opponentSection.classList.remove('hidden');
+            }
             
             // Set up opponent grid if needed
             const opponentGrid = document.getElementById('opponentGrid');
@@ -2335,7 +2340,12 @@
             // Show opponent info if we have a current opponent
             if (gameState.currentOpponent) {
                 console.log('🎯 Showing opponent:', gameState.currentOpponent.name);
-                document.getElementById('opponentDisplayName').textContent = gameState.currentOpponent.name;
+                
+                // Update the sidebar opponent section title
+                const opponentTitle = document.querySelector('.opponent-section h3');
+                if (opponentTitle) {
+                    opponentTitle.textContent = `Opponent: ${gameState.currentOpponent.name}`;
+                }
                 
                 // Update opponent progress if available
                 if (gameState.currentOpponent.progress) {
@@ -2343,7 +2353,10 @@
                 }
             } else {
                 // Show placeholder for no opponent yet
-                document.getElementById('opponentDisplayName').textContent = 'Searching for opponent...';
+                const opponentTitle = document.querySelector('.opponent-section h3');
+                if (opponentTitle) {
+                    opponentTitle.textContent = 'Searching for opponent...';
+                }
                 
                 // Reset opponent grid to empty state
                 if (opponentGrid) {
