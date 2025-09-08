@@ -2075,6 +2075,37 @@
                 messageEl.textContent = 'Battle Royale mode: Eliminate opponents by solving words! Complete words to send garbage rows.';
                 messageEl.className = 'message info';
             }
+            
+            // Update Battle Royale specific stats
+            updateBattleRoyaleStats();
+            
+            // Update players list for Battle Royale
+            updatePlayersList();
+        }
+
+        function updateBattleRoyaleStats() {
+            console.log('🔥 Updating Battle Royale stats');
+            
+            // Update players alive count
+            document.getElementById('playersAlive').textContent = gameState.playersAlive || 0;
+            
+            // Update your rank 
+            document.getElementById('yourRank').textContent = gameState.yourRank || 1;
+            
+            // Update round number (Battle Royale doesn't have rounds, so show 1 or hide)
+            document.getElementById('roundNumber').textContent = 1;
+            
+            // Update score (Battle Royale may not have traditional scores)
+            const currentPlayer = gameState.players?.find(p => p.id === gameState.playerId);
+            const displayScore = currentPlayer?.score || 0;
+            document.getElementById('yourScore').textContent = displayScore;
+            document.getElementById('scoreLabel').textContent = 'Score';
+            
+            console.log('🔥 Updated Battle Royale stats:', {
+                playersAlive: gameState.playersAlive,
+                yourRank: gameState.yourRank,
+                yourScore: displayScore
+            });
         }
 
         function updatePlayersList() {
@@ -2082,7 +2113,17 @@
             if (!playersList) return;
             
             playersList.innerHTML = '';
-            const alivePlayers = gameState.players.filter(p => p.alive);
+            
+            // Handle different player filtering for Battle Royale vs Tournament
+            let alivePlayers;
+            if (gameState.isBattleRoyale) {
+                // For Battle Royale, filter by 'alive' property
+                alivePlayers = gameState.players ? gameState.players.filter(p => p.alive !== false) : [];
+            } else {
+                // For Tournament, filter by 'alive' property (existing logic)
+                alivePlayers = gameState.players ? gameState.players.filter(p => p.alive) : [];
+            }
+            
             const topPlayers = alivePlayers.slice(0, 10);
 
             topPlayers.forEach((player, index) => {
@@ -2090,16 +2131,31 @@
                 playerDiv.className = `player-item ${player.id === gameState.playerId ? 'you' : ''}`;
                 
                 const completedIcon = player.completedCurrentWord ? ' ✅' : '';
+                
                 // Show match score during active games, tournament total otherwise
-                const displayScore = gameState.gameStatus === 'playing' && gameState.currentMatch 
-                    ? player.currentMatchScore || 0 
-                    : player.score || 0;
+                let displayScore;
+                if (gameState.isBattleRoyale) {
+                    // For Battle Royale, show player score or 0
+                    displayScore = player.score || 0;
+                } else {
+                    // For Tournament, show match score during active games
+                    displayScore = gameState.gameStatus === 'playing' && gameState.currentMatch 
+                        ? player.currentMatchScore || 0 
+                        : player.score || 0;
+                }
                     
                 playerDiv.innerHTML = `
                     <span class="player-name">#${index + 1} ${player.name}${completedIcon}</span>
                     <span class="player-score">${displayScore}</span>
                 `;
                 playersList.appendChild(playerDiv);
+            });
+            
+            console.log('🎮 Updated players list:', {
+                totalPlayers: gameState.players?.length || 0,
+                alivePlayers: alivePlayers.length,
+                displayedPlayers: topPlayers.length,
+                isBattleRoyale: gameState.isBattleRoyale
             });
         }
 
