@@ -1933,7 +1933,19 @@
             if (gameState.isBattleRoyale && gameState.garbageRows !== undefined) {
                 if (!gameState.lastGarbageCount || gameState.lastGarbageCount !== gameState.garbageRows) {
                     console.log(`🗑️ Garbage count changed from ${gameState.lastGarbageCount || 0} to ${gameState.garbageRows}`);
-                    updateGarbageRows(gameState.garbageRows);
+                    
+                    // Check if animations are currently running
+                    const isAnimating = document.querySelector('.flipping') !== null;
+                    if (isAnimating) {
+                        console.log(`⏳ Delaying garbage update until animations complete`);
+                        // Wait for animations to complete (600ms flip + 500ms stagger = 1200ms safety)
+                        setTimeout(() => {
+                            console.log(`🗑️ Now updating garbage rows after animation delay`);
+                            updateGarbageRows(gameState.garbageRows);
+                        }, 1200);
+                    } else {
+                        updateGarbageRows(gameState.garbageRows);
+                    }
                     gameState.lastGarbageCount = gameState.garbageRows;
                 }
             }
