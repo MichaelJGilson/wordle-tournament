@@ -148,6 +148,7 @@ const playerSockets = new Map();
 // Public matchmaking queue
 const publicMatchmakingQueue = [];
 let publicMatchmakingInterval = null;
+let publicBattleRoyaleGame = null; // Persistent Battle Royale game
 
 // Public matchmaking functions
 function startPublicMatchmaking() {
@@ -229,106 +230,84 @@ function updateQueuePositions() {
 }
 
 function processPublicMatchmakingQueue() {
-    if (publicMatchmakingQueue.length < 2) {
-        return; // Need at least 2 players
+    if (publicMatchmakingQueue.length === 0) {
+        return; // No players waiting
     }
     
-    // Take first 2 players from queue
-    const player1Entry = publicMatchmakingQueue.shift();
-    const player2Entry = publicMatchmakingQueue.shift();
-    
-    console.log(`🎮 Creating public match: ${player1Entry.playerName} vs ${player2Entry.playerName}`);
-    
-    // Get socket instances
-    const socket1 = io.sockets.sockets.get(player1Entry.socketId);
-    const socket2 = io.sockets.sockets.get(player2Entry.socketId);
-    
-    // Validate sockets still exist and are not already in games
-    if (!socket1 || !socket2) {
-        console.log('⚠️ One or both players disconnected, returning to queue processing');
-        // Put back the valid player if any
-        if (socket1) publicMatchmakingQueue.unshift(player1Entry);
-        if (socket2) publicMatchmakingQueue.unshift(player2Entry);
-        updateQueuePositions();
-        return;
+    // Create or get the current public battle royale game
+    if (!publicBattleRoyaleGame || publicBattleRoyaleGame.status === 'ended') {
+        // Create new battle royale game
+        const gameId = generateShortId(6);
+        publicBattleRoyaleGame = new BattleRoyaleGame(gameId, 100);
+        publicBattleRoyaleGame.isPublicMatch = true;
+        activeGames.set(gameId, publicBattleRoyaleGame);
+        console.log(`🔥 Created new public Battle Royale: ${gameId}`);
     }
     
-    // Check if players are already in games (prevent duplicate matches)
-    const existingPlayer1 = playerSockets.get(socket1.id);
-    const existingPlayer2 = playerSockets.get(socket2.id);
-    
-    if (existingPlayer1 || existingPlayer2) {
-        console.log('⚠️ One or both players already in games, returning to queue');
-        if (!existingPlayer1) publicMatchmakingQueue.unshift(player1Entry);
-        if (!existingPlayer2) publicMatchmakingQueue.unshift(player2Entry);
-        updateQueuePositions();
-        return;
-    }
-    
-    // Create a new public game
-    const gameId = generateShortId(6);
-    let game;
-    
-    try {
-        game = new Game(gameId, 2); // Max 2 players for public matches
-        game.isPublicMatch = true;
-        activeGames.set(gameId, game);
+    // Add all waiting players to the battle royale
+    while (publicMatchmakingQueue.length > 0) {
+        const playerEntry = publicMatchmakingQueue.shift();
+        const socket = io.sockets.sockets.get(playerEntry.socketId);
         
-        // Add both players to the game
-        socket1.join(gameId);
-        socket2.join(gameId);
-        
-        const result1 = game.addPlayer(socket1.id, player1Entry.playerName);
-        const result2 = game.addPlayer(socket2.id, player2Entry.playerName);
-        
-        if (!result1.success || !result2.success) {
-            throw new Error(`Failed to add players: P1=${result1.success}, P2=${result2.success}`);
+        // Validate socket still exists
+        if (!socket) {
+            console.log(`⚠️ Player ${playerEntry.playerName} disconnected, skipping`);
+            continue;
         }
         
-        // Track players in global map
-        playerSockets.set(socket1.id, { gameId, playerId: result1.playerId, name: player1Entry.playerName });
-        playerSockets.set(socket2.id, { gameId, playerId: result2.playerId, name: player2Entry.playerName });
+        // Check if player is already in a game
+        const existingPlayer = playerSockets.get(socket.id);
+        if (existingPlayer) {
+            console.log(`⚠️ Player ${playerEntry.playerName} already in game, skipping`);
+            continue;
+        }
         
-        // Notify both players they found a match
-        socket1.emit('matchFound', {
-            gameId: gameId,
-            playerId: result1.playerId,
-            opponent: player2Entry.playerName
-        });
-        
-        socket2.emit('matchFound', {
-            gameId: gameId,
-            playerId: result2.playerId,
-            opponent: player1Entry.playerName
-        });
-        
-        // Start the game automatically after a brief delay
-        setTimeout(() => {
-            try {
-                if (activeGames.has(gameId) && game.startGame()) {
-                    game.broadcastGameState();
-                    console.log(`✅ Public match started: ${gameId}`);
-                } else {
-                    console.log(`⚠️ Failed to start game ${gameId} - cleaning up`);
-                    cleanupFailedMatch(gameId, socket1, socket2);
+        try {
+            // Add player to the battle royale
+            socket.join(publicBattleRoyaleGame.id);
+            const result = publicBattleRoyaleGame.addPlayer(socket.id, playerEntry.playerName);
+            
+            if (result.success) {
+                // Track player in global map
+                playerSockets.set(socket.id, { 
+                    gameId: publicBattleRoyaleGame.id, 
+                    playerId: result.playerId, 
+                    name: playerEntry.playerName 
+                });
+                
+                // Notify player they joined the battle royale
+                socket.emit('matchFound', {
+                    gameId: publicBattleRoyaleGame.id,
+                    playerId: result.playerId,
+                    isBattleRoyale: true
+                });
+                
+                console.log(`✅ ${playerEntry.playerName} joined Battle Royale (${publicBattleRoyaleGame.players.size} players)`);
+                
+                // Auto-start when we reach minimum players
+                if (publicBattleRoyaleGame.players.size >= 2 && publicBattleRoyaleGame.status === 'waiting') {
+                    setTimeout(() => {
+                        if (publicBattleRoyaleGame.status === 'waiting') {
+                            console.log(`🚀 Auto-starting Battle Royale with ${publicBattleRoyaleGame.players.size} players`);
+                            publicBattleRoyaleGame.startGame(publicBattleRoyaleGame.hostId);
+                            
+                            // Broadcast to all players
+                            const gameState = publicBattleRoyaleGame.broadcastGameState();
+                            io.to(publicBattleRoyaleGame.id).emit('gameUpdate', gameState);
+                        }
+                    }, 3000); // 3 second delay to allow more players to join
                 }
-            } catch (error) {
-                console.error(`❌ Error starting game ${gameId}:`, error);
-                cleanupFailedMatch(gameId, socket1, socket2);
+            } else {
+                console.log(`❌ Failed to add ${playerEntry.playerName} to Battle Royale: ${result.error}`);
+                socket.emit('matchError', { error: result.error });
             }
-        }, 2000);
-        
-        console.log(`🎯 Match created successfully: ${gameId}`);
-        
-    } catch (error) {
-        console.error('❌ Failed to create public match:', error);
-        
-        // Cleanup and return players to queue
-        cleanupFailedMatch(gameId, socket1, socket2);
-        publicMatchmakingQueue.unshift(player2Entry, player1Entry);
+        } catch (error) {
+            console.error(`❌ Error adding player ${playerEntry.playerName}:`, error);
+            socket.emit('matchError', { error: 'Failed to join Battle Royale' });
+        }
     }
     
-    // Update queue positions for remaining players
+    // Update queue positions for any remaining players
     updateQueuePositions();
 }
 
