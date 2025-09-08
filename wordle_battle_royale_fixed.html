@@ -1448,17 +1448,50 @@
             console.log('🔄 updateGameFromServer called');
             console.log('🔄 Server status:', serverGameState.status);
             console.log('🔄 Tournament mode:', serverGameState.tournamentMode);
+            console.log('🔄 Battle Royale:', serverGameState.isBattleRoyale);
             console.log('🔄 Current match:', serverGameState.currentMatch);
             
             // Store previous state for comparison
             const previousRound = gameState.round;
             const previousMatchId = gameState.currentMatch?.id;
             
-            // Update state
+            // Update state - handle both tournament and battle royale
             gameState.playersAlive = serverGameState.playersAlive;
             gameState.players = serverGameState.players;
             gameState.gameStatus = serverGameState.status;
             gameState.tournamentMode = serverGameState.tournamentMode;
+            gameState.isBattleRoyale = serverGameState.isBattleRoyale;
+            
+            // Handle Battle Royale mode
+            if (serverGameState.isBattleRoyale) {
+                console.log('🔥 Processing Battle Royale update');
+                
+                // Update Battle Royale specific state
+                if (serverGameState.playerProgress) {
+                    gameState.currentRow = serverGameState.playerProgress.currentRow || 0;
+                    gameState.garbageRows = serverGameState.playerProgress.garbageRows || 0;
+                    gameState.maxRows = serverGameState.playerProgress.maxRows || 6;
+                }
+                
+                // Update opponent info
+                if (serverGameState.currentOpponent) {
+                    gameState.currentOpponent = serverGameState.currentOpponent;
+                }
+                
+                // Update timer
+                if (serverGameState.gameTimer !== undefined) {
+                    gameState.gameTimer = serverGameState.gameTimer;
+                    gameState.gameTimerFormatted = serverGameState.gameTimerFormatted;
+                }
+                
+                // Find current player for rank/score
+                const currentPlayer = serverGameState.players?.find(p => p.id === gameState.playerId);
+                if (currentPlayer) {
+                    gameState.yourRank = currentPlayer.rank;
+                }
+                
+            } else {
+                // Handle Tournament mode (existing logic)
 
             const currentPlayer = serverGameState.players.find(p => p.id === gameState.playerId);
             if (currentPlayer) {
@@ -1511,21 +1544,34 @@
                 gameState.currentGuess = '';
             }
             
-            // Update state after reset check
-            gameState.round = serverGameState.round;
-            gameState.currentMatch = serverGameState.currentMatch;
+            // Update state after reset check (tournament mode)
+            if (!serverGameState.isBattleRoyale) {
+                gameState.round = serverGameState.round;
+                gameState.currentMatch = serverGameState.currentMatch;
+            }
 
+            // Handle different game states
             if (serverGameState.status === 'waiting') {
                 showLobby();
                 updateLobby(serverGameState);
             } else if (serverGameState.status === 'playing') {
                 showGame();
                 updateGameDisplay();
-                updateTournamentDisplay(serverGameState);
+                
+                if (serverGameState.isBattleRoyale) {
+                    console.log('🔥 Updating Battle Royale display');
+                    updateBattleRoyaleDisplay(serverGameState);
+                } else {
+                    updateTournamentDisplay(serverGameState);
+                }
             } else if (serverGameState.status === 'ended') {
                 showGame();
                 updateGameDisplay();
-                showMessage('Tournament Over!', 'info');
+                if (serverGameState.isBattleRoyale) {
+                    showMessage('Battle Royale Over!', 'info');
+                } else {
+                    showMessage('Tournament Over!', 'info');
+                }
             }
         }
 
@@ -1985,6 +2031,50 @@
             }
             
             console.log('🎯 Opponent grid update complete');
+        }
+
+        function updateBattleRoyaleDisplay(serverGameState) {
+            console.log('🔥 Updating Battle Royale UI elements');
+            
+            // Hide tournament-specific elements
+            document.getElementById('tournamentInfo').classList.add('hidden');
+            document.getElementById('matchInfo').classList.add('hidden');
+            
+            // Show opponent info if we have a current opponent
+            if (gameState.currentOpponent) {
+                console.log('🎯 Showing opponent:', gameState.currentOpponent.name);
+                document.getElementById('opponentSection').classList.remove('hidden');
+                document.getElementById('opponentDisplayName').textContent = gameState.currentOpponent.name;
+                
+                // Set up opponent grid if needed
+                const opponentGrid = document.getElementById('opponentGrid');
+                if (!opponentGrid || opponentGrid.children.length === 0) {
+                    setupOpponentGrid();
+                }
+                
+                // Update opponent progress if available
+                if (gameState.currentOpponent.progress) {
+                    updateOpponentGrid(gameState.currentOpponent.progress);
+                }
+            } else {
+                document.getElementById('opponentSection').classList.add('hidden');
+            }
+            
+            // Update global timer display for Battle Royale
+            if (gameState.gameTimer !== undefined) {
+                const minutes = Math.floor(gameState.gameTimer / 60);
+                const seconds = gameState.gameTimer % 60;
+                document.getElementById('timer').textContent = `🔥 Battle Royale: ${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+            } else {
+                document.getElementById('timer').textContent = '🔥 Battle Royale Active';
+            }
+            
+            // Update message for Battle Royale mode
+            const messageEl = document.getElementById('message');
+            if (messageEl && gameState.gameStatus === 'playing') {
+                messageEl.textContent = 'Battle Royale mode: Eliminate opponents by solving words! Complete words to send garbage rows.';
+                messageEl.className = 'message info';
+            }
         }
 
         function updatePlayersList() {
