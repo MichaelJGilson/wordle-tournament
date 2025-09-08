@@ -2086,7 +2086,12 @@
                 document.getElementById('scoreLabel').textContent = 'Total Score';
             }
             
-            document.getElementById('roundNumber').textContent = gameState.round;
+            // Only update round number in tournament mode (element may not exist in Battle Royale)
+            const roundElement = document.getElementById('roundNumber');
+            if (roundElement && !gameState.isBattleRoyale) {
+                roundElement.textContent = gameState.round;
+            }
+            
             document.getElementById('yourRank').textContent = gameState.yourRank;
             document.getElementById('killCount').textContent = gameState.killCount || 0;
 
@@ -2209,27 +2214,34 @@
 
         function updateSeriesScore() {
             const seriesScoreEl = document.getElementById('seriesScore');
+            if (!seriesScoreEl) return; // Safety check
             
             if (gameState.isPublicMatch && gameState.seriesScore) {
                 seriesScoreEl.classList.remove('hidden');
                 
                 const { player1, player2 } = gameState.seriesScore;
                 
-                document.getElementById('player1Name').textContent = player1.name;
-                document.getElementById('player1Wins').textContent = player1.wins;
-                document.getElementById('player2Name').textContent = player2.name;
-                document.getElementById('player2Wins').textContent = player2.wins;
+                const player1NameEl = document.getElementById('player1Name');
+                const player1WinsEl = document.getElementById('player1Wins');
+                const player2NameEl = document.getElementById('player2Name');
+                
+                if (player1NameEl) player1NameEl.textContent = player1.name;
+                if (player1WinsEl) player1WinsEl.textContent = player1.wins;
+                if (player2NameEl) player2NameEl.textContent = player2.name;
+                
+                const player2WinsEl = document.getElementById('player2Wins');
+                if (player2WinsEl) player2WinsEl.textContent = player2.wins;
                 
                 // Highlight current player
-                const player1Card = document.getElementById('player1Name').parentElement;
-                const player2Card = document.getElementById('player2Name').parentElement;
+                const player1Card = player1NameEl ? player1NameEl.parentElement : null;
+                const player2Card = player2NameEl ? player2NameEl.parentElement : null;
                 
                 if (player1.id === gameState.playerId) {
-                    player1Card.style.background = '#538d4e'; // Green for current player
-                    player2Card.style.background = '#818384'; // Gray for opponent
+                    if (player1Card) player1Card.style.background = '#538d4e'; // Green for current player
+                    if (player2Card) player2Card.style.background = '#818384'; // Gray for opponent
                 } else {
-                    player2Card.style.background = '#538d4e'; // Green for current player
-                    player1Card.style.background = '#818384'; // Gray for opponent
+                    if (player2Card) player2Card.style.background = '#538d4e'; // Green for current player
+                    if (player1Card) player1Card.style.background = '#818384'; // Gray for opponent
                 }
             } else {
                 seriesScoreEl.classList.add('hidden');
