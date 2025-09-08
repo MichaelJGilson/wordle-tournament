@@ -1021,6 +1021,7 @@
             yourRank: 1,
             round: 1,
             score: 0,
+            killCount: 0,
             connected: false,
             tournamentMode: true,
             currentMatch: null, // Will contain match info including opponent and timer
@@ -2040,6 +2041,7 @@
             
             document.getElementById('roundNumber').textContent = gameState.round;
             document.getElementById('yourRank').textContent = gameState.yourRank;
+            document.getElementById('killCount').textContent = gameState.killCount || 0;
 
             // Show/hide and update series score for public matches
             updateSeriesScore();
