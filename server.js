@@ -1151,11 +1151,21 @@ class BattleRoyaleGame {
             
             // Send garbage to opponent
             const opponentId = this.activeMatches.get(playerId);
-            if (opponentId && garbageRows > 0) {
-                this.sendGarbage(opponentId, garbageRows, progress.currentRow === 1);
+            if (opponentId) {
+                const opponent = this.players.get(opponentId);
+                const opponentProgress = this.playerProgress.get(opponentId);
+                
+                console.log(`🎯 ${player.name} completed word "${target}" in ${progress.currentRow} attempts`);
+                console.log(`🎯 Opponent: ${opponent?.name}, their word: ${opponentProgress?.currentWord}`);
+                
+                if (garbageRows > 0) {
+                    this.sendGarbage(opponentId, garbageRows, progress.currentRow === 1);
+                }
+            } else {
+                console.log(`⚠️ ${player.name} completed word but has no opponent to send garbage to`);
             }
             
-            // Give player a new word and find new opponent
+            // Give player a new word (opponent keeps their word)
             this.resetPlayerForNewRound(playerId);
             
             console.log(`✅ ${player.name} completed word in ${progress.currentRow} attempts, sent ${garbageRows} garbage`);
@@ -1178,14 +1188,21 @@ class BattleRoyaleGame {
     }
     
     sendGarbage(targetPlayerId, garbageCount, isInstantKO = false) {
+        const targetPlayer = this.players.get(targetPlayerId);
+        if (!targetPlayer) {
+            console.log(`❌ Cannot send garbage - target player ${targetPlayerId} not found`);
+            return;
+        }
+        
         if (isInstantKO) {
             // First-try completion = instant KO
             this.eliminatePlayer(targetPlayerId);
-            console.log(`💀 ${this.players.get(targetPlayerId)?.name} instantly eliminated!`);
+            console.log(`💀 ${targetPlayer.name} instantly eliminated!`);
             return;
         }
         
         const garbageQueue = this.garbageQueue.get(targetPlayerId) || [];
+        const previousGarbageCount = garbageQueue.length;
         
         // Add garbage rows
         for (let i = 0; i < garbageCount; i++) {
@@ -1194,7 +1211,8 @@ class BattleRoyaleGame {
         
         this.garbageQueue.set(targetPlayerId, garbageQueue);
         
-        console.log(`🗑️ Sent ${garbageCount} garbage rows to ${this.players.get(targetPlayerId)?.name}`);
+        console.log(`🗑️ Sent ${garbageCount} garbage rows to ${targetPlayer.name}`);
+        console.log(`🗑️ ${targetPlayer.name} now has ${garbageQueue.length} total garbage rows (was ${previousGarbageCount})`);
     }
     
     resetPlayerForNewRound(playerId) {
@@ -1204,10 +1222,13 @@ class BattleRoyaleGame {
             progress.guesses = [];
             progress.completed = false;
             progress.currentWord = this.getRandomWord();
+            
+            console.log(`🔄 ${this.players.get(playerId)?.name} got new word: ${progress.currentWord}`);
         }
         
-        // Find new opponent
-        this.findNewOpponent(playerId);
+        // In Battle Royale, keep same opponent pairing
+        // Don't call findNewOpponent() - players should continue with same opponent
+        console.log(`🎯 ${this.players.get(playerId)?.name} continues with same opponent`);
     }
     
     findNewOpponent(playerId) {
