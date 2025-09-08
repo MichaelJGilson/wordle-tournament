@@ -1879,7 +1879,10 @@
                                 }
                             }, 600);
                         } else {
-                            console.warn(`⚠️ Cell changed during animation: expected ${cell?.id}, found ${currentCell?.id}`);
+                            // Only warn if cells are actually different (not just object references)
+                            if (cell?.id !== currentCell?.id) {
+                                console.warn(`⚠️ Cell changed during animation: expected ${cell?.id}, found ${currentCell?.id}`);
+                            }
                         }
                     }, i * 100);
                 } else {

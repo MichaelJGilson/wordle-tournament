@@ -1245,9 +1245,8 @@ class BattleRoyaleGame {
             console.log(`🔄 ${this.players.get(playerId)?.name} got new word: ${progress.currentWord}`);
         }
         
-        // In Battle Royale, keep same opponent pairing
-        // Don't call findNewOpponent() - players should continue with same opponent
-        console.log(`🎯 ${this.players.get(playerId)?.name} continues with same opponent`);
+        // In Battle Royale, find a new opponent to avoid feedback loops
+        this.findNewOpponentAfterWordCompletion(playerId);
     }
     
     findNewOpponent(playerId) {
@@ -1261,6 +1260,50 @@ class BattleRoyaleGame {
             this.activeMatches.set(newOpponent.id, playerId);
             
             console.log(`🔄 ${this.players.get(playerId).name} rematched with ${newOpponent.name}`);
+        }
+    }
+    
+    findNewOpponentAfterWordCompletion(playerId) {
+        const playerName = this.players.get(playerId)?.name;
+        const currentOpponentId = this.activeMatches.get(playerId);
+        
+        // Remove current match to avoid feedback loops
+        if (currentOpponentId) {
+            this.activeMatches.delete(playerId);
+            this.activeMatches.delete(currentOpponentId);
+            console.log(`🔄 ${playerName} disconnected from ${this.players.get(currentOpponentId)?.name}`);
+        }
+        
+        // Find all alive players except this one, preferring players who also just completed words
+        const alivePlayers = Array.from(this.players.values())
+            .filter(p => p.alive && p.id !== playerId);
+        
+        if (alivePlayers.length > 0) {
+            // Prefer players who are also unmatched (just finished words)
+            let availablePlayers = alivePlayers.filter(p => !this.activeMatches.has(p.id));
+            
+            // If no unmatched players, allow taking players from existing matches
+            if (availablePlayers.length === 0) {
+                availablePlayers = alivePlayers;
+            }
+            
+            const newOpponent = availablePlayers[Math.floor(Math.random() * availablePlayers.length)];
+            
+            // If the new opponent was already matched, break their old match
+            const oldOpponentId = this.activeMatches.get(newOpponent.id);
+            if (oldOpponentId) {
+                this.activeMatches.delete(newOpponent.id);
+                this.activeMatches.delete(oldOpponentId);
+                console.log(`🔄 Broke match between ${newOpponent.name} and ${this.players.get(oldOpponentId)?.name}`);
+            }
+            
+            // Create new match
+            this.activeMatches.set(playerId, newOpponent.id);
+            this.activeMatches.set(newOpponent.id, playerId);
+            
+            console.log(`🎯 ${playerName} rematched with ${newOpponent.name} after word completion`);
+        } else {
+            console.log(`⚠️ No opponents available for ${playerName} after word completion`);
         }
     }
     
