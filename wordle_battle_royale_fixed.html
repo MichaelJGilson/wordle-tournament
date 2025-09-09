@@ -678,6 +678,155 @@
             border: 1px solid #3a3a3c;
         }
 
+        /* Game Result Overlays */
+        .result-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .result-overlay.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .result-content {
+            text-align: center;
+            color: white;
+            max-width: 500px;
+            padding: 40px;
+            background: linear-gradient(145deg, #2a2a2c 0%, #1e1e20 100%);
+            border-radius: 20px;
+            border: 2px solid #3a3a3c;
+            box-shadow: 
+                0 20px 60px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            transform: scale(0.8);
+            transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .result-overlay.show .result-content {
+            transform: scale(1);
+        }
+
+        .result-title {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .result-title.eliminated {
+            color: #d93025;
+            background: linear-gradient(45deg, #d93025, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .result-title.victory {
+            color: #ffd700;
+            background: linear-gradient(45deg, #ffd700, #ffed4e);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .result-stats {
+            margin: 30px 0;
+            padding: 25px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-stat:last-child {
+            border-bottom: none;
+        }
+
+        .result-stat-label {
+            font-size: 1.1rem;
+            color: #ccc;
+        }
+
+        .result-stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .result-rank {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 20px 0;
+            padding: 15px 25px;
+            background: linear-gradient(145deg, #538d4e, #4a7c44);
+            border-radius: 12px;
+            display: inline-block;
+            box-shadow: 0 4px 16px rgba(83, 141, 78, 0.4);
+        }
+
+        .result-actions {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .result-btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .result-btn.primary {
+            background: linear-gradient(145deg, #538d4e, #4a7c44);
+            color: white;
+            box-shadow: 0 4px 12px rgba(83, 141, 78, 0.3);
+        }
+
+        .result-btn.primary:hover {
+            background: linear-gradient(145deg, #6aaa64, #5a8f54);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(83, 141, 78, 0.4);
+        }
+
+        .result-btn.secondary {
+            background: #3a3a3c;
+            color: white;
+            border: 1px solid #565758;
+        }
+
+        .result-btn.secondary:hover {
+            background: #4a4a4c;
+            transform: translateY(-2px);
+        }
+
         .timer {
             text-align: center;
             font-size: 1.5rem;
@@ -834,6 +983,57 @@
     </style>
 </head>
 <body>
+    <!-- Game Result Overlays -->
+    <div id="eliminationOverlay" class="result-overlay">
+        <div class="result-content">
+            <div class="result-title eliminated">ELIMINATED</div>
+            <div class="result-rank" id="eliminationRank">#0</div>
+            <div class="result-stats">
+                <div class="result-stat">
+                    <span class="result-stat-label">Final Score</span>
+                    <span class="result-stat-value" id="eliminationScore">0</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-stat-label">Words Completed</span>
+                    <span class="result-stat-value" id="eliminationWordsCompleted">0</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-stat-label">Players Eliminated</span>
+                    <span class="result-stat-value" id="eliminationPlayersEliminated">0</span>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button class="result-btn primary" onclick="joinNewGame()">Play Again</button>
+                <button class="result-btn secondary" onclick="hideResultOverlay()">Spectate</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="victoryOverlay" class="result-overlay">
+        <div class="result-content">
+            <div class="result-title victory">VICTORY!</div>
+            <div class="result-rank" style="background: linear-gradient(145deg, #ffd700, #ffed4e); color: #000;">#1 WINNER</div>
+            <div class="result-stats">
+                <div class="result-stat">
+                    <span class="result-stat-label">Final Score</span>
+                    <span class="result-stat-value" id="victoryScore">0</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-stat-label">Words Completed</span>
+                    <span class="result-stat-value" id="victoryWordsCompleted">0</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-stat-label">Players Eliminated</span>
+                    <span class="result-stat-value" id="victoryPlayersEliminated">0</span>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button class="result-btn primary" onclick="joinNewGame()">Play Again</button>
+                <button class="result-btn secondary" onclick="hideResultOverlay()">Spectate</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1 class="title">WORD ROYALE</h1>
@@ -1030,6 +1230,7 @@
             score: 0,
             killCount: 0,
             connected: false,
+            overlayShown: false, // Track if elimination/victory overlay has been shown
             isBattleRoyale: true,
             currentMatch: null, // Will contain match info including opponent and timer
             clientTimer: 0, // Client-side timer for real-time countdown
@@ -1347,6 +1548,7 @@
                 score: 0,
                 timer: 60,
                 eliminationInProgress: false,
+                overlayShown: false, // Reset overlay flag when leaving game
                 connected: gameState.connected
             };
 
@@ -1600,6 +1802,30 @@
                 // Update rank/score from current player
                 if (currentPlayer) {
                     gameState.yourRank = currentPlayer.rank;
+                    
+                    // Check for elimination or victory overlay triggers
+                    if (!currentPlayer.alive && !gameState.overlayShown) {
+                        // Player has been eliminated - show elimination overlay
+                        gameState.overlayShown = true;
+                        setTimeout(() => {
+                            showEliminationOverlay({
+                                rank: currentPlayer.rank,
+                                score: currentPlayer.score || 0,
+                                wordsCompleted: currentPlayer.wordsCompleted || 0,
+                                playersEliminated: currentPlayer.playersEliminated || 0
+                            });
+                        }, 2000); // Small delay to let elimination process
+                    } else if (serverGameState.status === 'ended' && currentPlayer.alive && !gameState.overlayShown) {
+                        // Player won the game - show victory overlay
+                        gameState.overlayShown = true;
+                        setTimeout(() => {
+                            showVictoryOverlay({
+                                score: currentPlayer.score || 0,
+                                wordsCompleted: currentPlayer.wordsCompleted || 0,
+                                playersEliminated: currentPlayer.playersEliminated || 0
+                            });
+                        }, 2000); // Small delay to let victory process
+                    }
                 }
                 
             } else {
@@ -2630,6 +2856,56 @@
                 messageEl.textContent = text;
                 messageEl.className = `message ${type}`;
             }
+        }
+
+        // Game result overlay functions
+        function showEliminationOverlay(playerData) {
+            const overlay = document.getElementById('eliminationOverlay');
+            const rank = document.getElementById('eliminationRank');
+            const score = document.getElementById('eliminationScore');
+            const wordsCompleted = document.getElementById('eliminationWordsCompleted');
+            const playersEliminated = document.getElementById('eliminationPlayersEliminated');
+            
+            rank.textContent = `#${playerData.rank || 'Unknown'}`;
+            score.textContent = playerData.score || 0;
+            wordsCompleted.textContent = playerData.wordsCompleted || 0;
+            playersEliminated.textContent = playerData.playersEliminated || 0;
+            
+            overlay.classList.add('show');
+            
+            console.log('🎯 Elimination overlay shown:', playerData);
+        }
+
+        function showVictoryOverlay(playerData) {
+            const overlay = document.getElementById('victoryOverlay');
+            const score = document.getElementById('victoryScore');
+            const wordsCompleted = document.getElementById('victoryWordsCompleted');
+            const playersEliminated = document.getElementById('victoryPlayersEliminated');
+            
+            score.textContent = playerData.score || 0;
+            wordsCompleted.textContent = playerData.wordsCompleted || 0;
+            playersEliminated.textContent = playerData.playersEliminated || 0;
+            
+            overlay.classList.add('show');
+            
+            console.log('🏆 Victory overlay shown:', playerData);
+        }
+
+        function hideResultOverlay() {
+            const eliminationOverlay = document.getElementById('eliminationOverlay');
+            const victoryOverlay = document.getElementById('victoryOverlay');
+            
+            eliminationOverlay.classList.remove('show');
+            victoryOverlay.classList.remove('show');
+        }
+
+        function joinNewGame() {
+            hideResultOverlay();
+            // Reset overlay flag for new game
+            gameState.overlayShown = false;
+            // Reset game state and rejoin queue
+            resetGameState();
+            joinPublicQueue();
         }
 
         function setupGrid() {
