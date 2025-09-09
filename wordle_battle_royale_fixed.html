@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Royale - Multiplayer Tournament</title>
+    <title>Word Royale - Battle Royale</title>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -459,7 +459,7 @@
             color: white;
         }
 
-        .tournament-info {
+        .battle-royale-info {
             background: #3a3a3c;
             border-radius: 10px;
             padding: 15px;
@@ -849,8 +849,8 @@
                     <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.9;">Tetris 99-style: 100 players, 15 minutes, garbage system</div>
                 </button>
                 <button class="btn" onclick="showCustomGame()" style="padding: 20px 40px; font-size: 1.2rem;">
-                    🏠 Custom Tournament
-                    <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">Create or join private tournament rooms</div>
+                    🏠 Custom Battle Royale
+                    <div style="font-size: 0.8rem; margin-top: 5px; opacity: 0.8;">Create or join private battle royale rooms</div>
                 </button>
             </div>
         </div>
@@ -1030,7 +1030,7 @@
             score: 0,
             killCount: 0,
             connected: false,
-            tournamentMode: true,
+            isBattleRoyale: true,
             currentMatch: null, // Will contain match info including opponent and timer
             clientTimer: 0, // Client-side timer for real-time countdown
             timerInterval: null, // Client timer interval
