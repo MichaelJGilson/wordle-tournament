@@ -340,15 +340,6 @@ function cleanupFailedMatch(gameId, socket1, socket2) {
     }
 }
 
-// Calculate round-based score multiplier
-function getRoundMultiplier(round) {
-    // Round 1: 1x, Round 2: 1.5x, Round 3: 2x, Round 4+: 2.5x, Final: 3x
-    if (round === 1) return 1.0;
-    if (round === 2) return 1.5;
-    if (round === 3) return 2.0;
-    if (round >= 7) return 3.0; // Finals (when only 2 players left)
-    return 2.5; // Semi-finals and quarters
-}
 
 // Match class for 1v1 tournament matches
 class Match {
@@ -1526,7 +1517,7 @@ io.on('connection', (socket) => {
             }
             
             const gameId = generateShortId(6); // Generate 6-character game ID
-            const game = new Game(gameId, maxPlayers);
+            const game = new BattleRoyaleGame(gameId, maxPlayers);
             
             activeGames.set(gameId, game);
             socket.join(gameId);
@@ -1535,8 +1526,8 @@ io.on('connection', (socket) => {
             console.log(`🎯 AddPlayer result:`, result);
             
             if (result.success) {
-                console.log(`✅ Game created successfully! GameID: ${gameId}, PlayerID: ${result.playerId}`);
-                callback({ success: true, gameId: gameId, playerId: result.playerId });
+                console.log(`✅ Battle Royale game created! GameID: ${gameId}, PlayerID: ${result.playerId}`);
+                callback({ success: true, gameId: gameId, playerId: result.playerId, isBattleRoyale: true });
                 game.broadcastGameState();
             } else {
                 console.log(`❌ Failed to add player:`, result.error);
@@ -1548,44 +1539,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Create Battle Royale game
-    socket.on('createBattleRoyale', (data, callback) => {
-        console.log(`🔥 CreateBattleRoyale request from ${socket.id}:`, data);
-        
-        try {
-            const { playerName, maxPlayers = 100 } = data;
-            
-            if (!playerName || playerName.trim().length === 0) {
-                console.log(`❌ Invalid player name: "${playerName}"`);
-                callback({ success: false, error: 'Player name is required' });
-                return;
-            }
-            
-            const gameId = generateShortId(6);
-            const game = new BattleRoyaleGame(gameId, maxPlayers);
-            
-            activeGames.set(gameId, game);
-            socket.join(gameId);
-            
-            const result = game.addPlayer(socket.id, playerName);
-            console.log(`🎯 AddPlayer to Battle Royale result:`, result);
-            
-            if (result.success) {
-                console.log(`✅ Battle Royale game created! GameID: ${gameId}, PlayerID: ${result.playerId}`);
-                callback({ success: true, gameId: gameId, playerId: result.playerId, isBattleRoyale: true });
-                
-                // Broadcast game state
-                const gameState = game.broadcastGameState();
-                io.to(gameId).emit('gameUpdate', gameState);
-            } else {
-                console.log(`❌ Failed to add player to Battle Royale:`, result.error);
-                callback({ success: false, error: result.error });
-            }
-        } catch (error) {
-            console.error(`🔥 Error in createBattleRoyale:`, error);
-            callback({ success: false, error: 'Server error occurred' });
-        }
-    });
 
     socket.on('joinGame', (data, callback) => {
         const { gameId, playerName } = data;
