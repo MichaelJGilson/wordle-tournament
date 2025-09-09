@@ -1768,6 +1768,13 @@
         }
 
         function addLetter(letter) {
+            // Check if player is eliminated
+            const currentPlayer = gameState.players?.find(p => p.id === gameState.playerId);
+            if (!currentPlayer || !currentPlayer.alive) {
+                console.log('🚫 Blocked eliminated player from adding letter');
+                return;
+            }
+            
             if (gameState.currentGuess.length < 5 && gameState.currentRow < 6) {
                 const letterIndex = gameState.currentGuess.length;
                 gameState.currentGuess += letter;
@@ -1786,6 +1793,13 @@
         }
 
         function removeLetter() {
+            // Check if player is eliminated
+            const currentPlayer = gameState.players?.find(p => p.id === gameState.playerId);
+            if (!currentPlayer || !currentPlayer.alive) {
+                console.log('🚫 Blocked eliminated player from removing letter');
+                return;
+            }
+            
             if (gameState.currentGuess.length > 0) {
                 gameState.currentGuess = gameState.currentGuess.slice(0, -1);
                 updateCurrentRow();
@@ -1793,6 +1807,14 @@
         }
 
         function submitGuess() {
+            // Check if player is eliminated
+            const currentPlayer = gameState.players?.find(p => p.id === gameState.playerId);
+            if (!currentPlayer || !currentPlayer.alive) {
+                console.log('🚫 Blocked eliminated player from submitting guess');
+                showMessage('You have been eliminated!', 'error');
+                return;
+            }
+            
             if (gameState.currentGuess.length !== 5) {
                 showMessage('Word must be 5 letters long!', 'error');
                 shakeRow();

@@ -380,7 +380,10 @@ class BattleRoyaleGame {
             socketId: socketId,
             alive: true,
             rank: null,
-            joinTime: Date.now()
+            joinTime: Date.now(),
+            score: 0, // Battle Royale score tracking
+            wordsCompleted: 0, // Number of words successfully guessed
+            playersEliminated: 0 // Number of players eliminated by this player's garbage
         };
         
         this.players.set(playerId, player);
@@ -539,6 +542,14 @@ class BattleRoyaleGame {
         if (isCorrect) {
             progress.completed = true;
             
+            // Award points for completing word
+            const baseScore = 100; // Base points for completing a word
+            const speedBonus = Math.max(0, (7 - progress.currentRow) * 25); // Bonus for speed (25 pts per attempt saved)
+            const wordScore = baseScore + speedBonus;
+            
+            player.score += wordScore;
+            player.wordsCompleted += 1;
+            
             // Calculate garbage rows to send (6 - attempts used)
             const garbageRows = 6 - progress.currentRow;
             
@@ -548,11 +559,11 @@ class BattleRoyaleGame {
                 const opponent = this.players.get(opponentId);
                 const opponentProgress = this.playerProgress.get(opponentId);
                 
-                console.log(`🎯 ${player.name} completed word "${target}" in ${progress.currentRow} attempts`);
+                console.log(`🎯 ${player.name} completed word "${target}" in ${progress.currentRow} attempts (+${wordScore} pts)`);
                 console.log(`🎯 Opponent: ${opponent?.name}, their word: ${opponentProgress?.currentWord}`);
                 
                 if (garbageRows > 0) {
-                    this.sendGarbage(opponentId, garbageRows, progress.currentRow === 1);
+                    this.sendGarbage(opponentId, garbageRows, progress.currentRow === 1, playerId);
                 }
             } else {
                 console.log(`⚠️ ${player.name} completed word but has no opponent to send garbage to`);
@@ -561,7 +572,7 @@ class BattleRoyaleGame {
             // Give player a new word (opponent keeps their word)
             this.resetPlayerForNewRound(playerId);
             
-            console.log(`✅ ${player.name} completed word in ${progress.currentRow} attempts, sent ${garbageRows} garbage`);
+            console.log(`✅ ${player.name} completed word in ${progress.currentRow} attempts, +${wordScore} pts (total: ${player.score}), sent ${garbageRows} garbage`);
         }
         
         // Check if player failed (garbage blocks reduce available attempts)
@@ -572,10 +583,13 @@ class BattleRoyaleGame {
         
         if (progress.currentRow >= maxAttempts && !isCorrect) {
             console.log(`💀 ${player.name} eliminated - used all ${maxAttempts} attempts (${garbageRows} garbage rows blocking)`);
-            this.eliminatePlayer(playerId);
+            // Find who sent the garbage that eliminated this player (their current opponent likely)
+            const opponentId = this.activeMatches.get(playerId);
+            this.eliminatePlayer(playerId, opponentId);
         }
         
-        return {
+        // Include score information when word is completed
+        const responseData = {
             success: true,
             result: result,
             correct: isCorrect,
@@ -583,9 +597,22 @@ class BattleRoyaleGame {
             currentRow: progress.currentRow,
             garbageRows: this.garbageQueue.get(playerId)?.length || 0
         };
+        
+        // Add scoring info if word was completed correctly
+        if (isCorrect) {
+            const baseScore = 100;
+            const speedBonus = Math.max(0, (7 - progress.currentRow) * 25);
+            const wordScore = baseScore + speedBonus;
+            
+            responseData.pointsEarned = wordScore;
+            responseData.totalScore = player.score;
+            responseData.speedBonus = speedBonus;
+        }
+        
+        return responseData;
     }
     
-    sendGarbage(targetPlayerId, garbageCount, isInstantKO = false) {
+    sendGarbage(targetPlayerId, garbageCount, isInstantKO = false, senderId = null) {
         const targetPlayer = this.players.get(targetPlayerId);
         if (!targetPlayer) {
             console.log(`❌ Cannot send garbage - target player ${targetPlayerId} not found`);
@@ -594,7 +621,7 @@ class BattleRoyaleGame {
         
         if (isInstantKO) {
             // First-try completion = instant KO
-            this.eliminatePlayer(targetPlayerId);
+            this.eliminatePlayer(targetPlayerId, senderId);
             console.log(`💀 ${targetPlayer.name} instantly eliminated!`);
             return;
         }
@@ -702,11 +729,27 @@ class BattleRoyaleGame {
         }
     }
     
-    eliminatePlayer(playerId) {
+    eliminatePlayer(playerId, eliminatorId = null) {
         const player = this.players.get(playerId);
         if (player) {
             player.alive = false;
             player.rank = this.getAlivePlayersCount() + 1;
+            
+            // Award elimination points to the player who caused this elimination
+            if (eliminatorId) {
+                const eliminator = this.players.get(eliminatorId);
+                if (eliminator && eliminator.alive) {
+                    const eliminationPoints = 50;
+                    eliminator.score += eliminationPoints;
+                    eliminator.playersEliminated += 1;
+                    console.log(`🎯 ${eliminator.name} eliminated ${player.name} (+${eliminationPoints} pts)`);
+                }
+            }
+            
+            // Award placement bonus based on rank (higher rank = better placement = more points)
+            const totalPlayers = this.players.size;
+            const placementBonus = Math.max(0, Math.floor((totalPlayers - player.rank) * 10));
+            player.score += placementBonus;
             
             // Remove from active matches
             const opponentId = this.activeMatches.get(playerId);
@@ -721,7 +764,7 @@ class BattleRoyaleGame {
             // Update database
             db.run(`UPDATE players SET alive = 0, rank = ? WHERE id = ?`, [player.rank, playerId]);
             
-            console.log(`💀 ${player.name} eliminated (Rank: ${player.rank})`);
+            console.log(`💀 ${player.name} eliminated (Rank: #${player.rank}) +${placementBonus} placement bonus (Final score: ${player.score})`);
             
             // Check if game should end
             this.checkGameEnd();
@@ -825,6 +868,14 @@ class BattleRoyaleGame {
     getGameStateForPlayer(playerId) {
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         
+        // Include ALL players (alive and eliminated) so client can check status
+        const allPlayers = Array.from(this.players.values()).map((player, index) => ({
+            id: player.id,
+            name: player.name,
+            alive: player.alive,
+            rank: player.alive ? (alivePlayers.findIndex(p => p.id === player.id) + 1) : player.rank
+        }));
+
         const gameState = {
             gameId: this.id,
             status: this.status,
@@ -833,12 +884,7 @@ class BattleRoyaleGame {
             gameTimer: this.gameTimer,
             gameTimerFormatted: this.formatTime(this.gameTimer),
             isBattleRoyale: true,
-            players: alivePlayers.map((player, index) => ({
-                id: player.id,
-                name: player.name,
-                alive: player.alive,
-                rank: player.alive ? index + 1 : player.rank
-            }))
+            players: allPlayers
         };
         
         // Add requesting player's specific information
@@ -855,7 +901,8 @@ class BattleRoyaleGame {
             totalRows: 6 // Always 6 total visual rows
         };
         
-        if (opponent) {
+        // Only send opponent data if opponent is still alive
+        if (opponent && opponent.alive) {
             const opponentProgress = this.playerProgress.get(opponentId);
             gameState.currentOpponent = {
                 id: opponent.id,
