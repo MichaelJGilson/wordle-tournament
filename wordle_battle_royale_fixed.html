@@ -1298,7 +1298,7 @@
                 console.error('🔥 Connection error:', error);
                 gameState.connected = false;
                 updateConnectionStatus();
-                showMessage('Failed to connect to server. Make sure the server is running on localhost:3000', 'error');
+                showMessage('Connection to game server failed. Please check your internet connection and try again.', 'error');
             });
 
             socket.on('error', (error) => {
@@ -1776,10 +1776,20 @@
                 
                 // Update Battle Royale specific state
                 if (serverGameState.playerProgress) {
-                    gameState.currentRow = serverGameState.playerProgress.currentRow || 0;
+                    const serverRow = serverGameState.playerProgress.currentRow || 0;
+                    const previousClientRow = gameState.currentRow;
+                    
+                    gameState.currentRow = serverRow;
                     gameState.garbageRows = serverGameState.playerProgress.garbageRows || 0;
                     gameState.maxRows = serverGameState.playerProgress.maxRows || 6; // Playable rows
                     gameState.totalRows = serverGameState.playerProgress.totalRows || 6; // Visual rows
+                    
+                    // Check if player completed a word and got reset to row 0 (new word/opponent)
+                    if (serverRow === 0 && previousClientRow > 0 && serverGameState.status === 'playing') {
+                        console.log('🔄 BATTLE ROYALE RESET - Player completed word, clearing board');
+                        console.log('🔄 Previous row:', previousClientRow, '-> Server row:', serverRow);
+                        forceCompleteReset();
+                    }
                 }
                 
                 // Update opponent info

@@ -805,6 +805,61 @@ class BattleRoyaleGame {
         this.broadcastGameState();
     }
     
+    removePlayer(socketId) {
+        // Find player by socketId
+        let playerToRemove = null;
+        let playerIdToRemove = null;
+        
+        for (const [playerId, player] of this.players.entries()) {
+            if (player.socketId === socketId) {
+                playerToRemove = player;
+                playerIdToRemove = playerId;
+                break;
+            }
+        }
+        
+        if (!playerToRemove) {
+            console.log(`⚠️ Player with socketId ${socketId} not found in Battle Royale game ${this.id}`);
+            return;
+        }
+        
+        console.log(`🚪 Removing player ${playerToRemove.name} (${playerIdToRemove}) from Battle Royale game ${this.id}`);
+        
+        // If game is still waiting, just remove the player
+        if (this.status === 'waiting') {
+            this.players.delete(playerIdToRemove);
+            this.playerProgress.delete(playerIdToRemove);
+            this.garbageQueue.delete(playerIdToRemove);
+            playerSockets.delete(socketId);
+            
+            console.log(`✅ Player removed during waiting phase, ${this.players.size} players remaining`);
+            return;
+        }
+        
+        // If game is in progress, eliminate the player if they're still alive
+        if (this.status === 'playing' && playerToRemove.alive) {
+            console.log(`💀 Player ${playerToRemove.name} disconnected and will be eliminated`);
+            this.eliminatePlayer(playerIdToRemove);
+        }
+        
+        // Clean up tracking
+        playerSockets.delete(socketId);
+        
+        // Remove from active matches
+        const opponentId = this.activeMatches.get(playerIdToRemove);
+        if (opponentId) {
+            this.activeMatches.delete(playerIdToRemove);
+            this.activeMatches.delete(opponentId);
+            
+            // Find new opponent for the remaining player if game is still active
+            if (this.status === 'playing') {
+                this.findNewOpponent(opponentId);
+            }
+        }
+        
+        console.log(`✅ Player cleanup complete`);
+    }
+    
     evaluateGuess(guess, target) {
         const result = [];
         const targetLetters = target.split('');
@@ -860,7 +915,13 @@ class BattleRoyaleGame {
             });
             const socket = io.sockets.sockets.get(player.socketId);
             if (socket) {
-                socket.emit('gameUpdate', personalizedState);
+                try {
+                    socket.emit('gameUpdate', personalizedState);
+                } catch (error) {
+                    console.error(`❌ Error sending game update to ${player.name} (${player.id}):`, error.message);
+                }
+            } else {
+                console.warn(`⚠️ Socket not found for player ${player.name} (${player.id}, socketId: ${player.socketId})`);
             }
         });
     }
