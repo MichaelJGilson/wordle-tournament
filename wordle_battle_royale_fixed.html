@@ -2946,6 +2946,8 @@
             const keyButtons = document.querySelectorAll('.key.letter');
             keyButtons.forEach(button => {
                 button.classList.remove('correct', 'present', 'absent');
+                button.style.background = '';
+                button.style.color = '';
             });
         }
 
