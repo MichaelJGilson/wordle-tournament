@@ -643,12 +643,12 @@ class BattleRoyaleGame {
     resetPlayerForNewRound(playerId) {
         const progress = this.playerProgress.get(playerId);
         if (progress) {
-            progress.currentRow = 0;
-            progress.guesses = [];
-            progress.completed = false;
-            progress.currentWord = this.getRandomWord();
+            // Mark as awaiting new match but keep the board display
+            progress.awaitingNewMatch = true;
+            progress.completed = true; // Keep completed status for UI
+            progress.currentWord = this.getRandomWord(); // Assign new word but don't reset board yet
             
-            console.log(`🔄 ${this.players.get(playerId)?.name} got new word: ${progress.currentWord}`);
+            console.log(`🔄 ${this.players.get(playerId)?.name} completed word, awaiting new opponent. New word ready: ${progress.currentWord}`);
         }
         
         // In Battle Royale, find a new opponent to avoid feedback loops
@@ -672,6 +672,12 @@ class BattleRoyaleGame {
             
             this.activeMatches.set(playerId, newOpponent.id);
             this.activeMatches.set(newOpponent.id, playerId);
+            
+            // Clear board if player was awaiting new match
+            const progress = this.playerProgress.get(playerId);
+            if (progress && progress.awaitingNewMatch) {
+                this.actuallyResetPlayerBoard(playerId);
+            }
             
             console.log(`🔄 ${this.players.get(playerId).name} rematched with ${newOpponent.name}`);
         }
@@ -723,9 +729,25 @@ class BattleRoyaleGame {
             this.activeMatches.set(playerId, newOpponent.id);
             this.activeMatches.set(newOpponent.id, playerId);
             
-            console.log(`🎯 ${playerName} rematched with ${newOpponent.name} after word completion`);
+            // NOW reset the board for the new match
+            this.actuallyResetPlayerBoard(playerId);
+            
+            console.log(`🎯 ${playerName} rematched with ${newOpponent.name} after word completion - board cleared for new round`);
         } else {
             console.log(`⚠️ No opponents available for ${playerName} after word completion`);
+        }
+    }
+    
+    actuallyResetPlayerBoard(playerId) {
+        const progress = this.playerProgress.get(playerId);
+        if (progress) {
+            progress.currentRow = 0;
+            progress.guesses = [];
+            progress.completed = false;
+            progress.awaitingNewMatch = false;
+            // currentWord is already set in resetPlayerForNewRound
+            
+            console.log(`🧹 ${this.players.get(playerId)?.name} board cleared for new match with word: ${progress.currentWord}`);
         }
     }
     
@@ -957,9 +979,11 @@ class BattleRoyaleGame {
         gameState.playerProgress = {
             currentRow: progress?.currentRow || 0,
             completed: progress?.completed || false,
+            awaitingNewMatch: progress?.awaitingNewMatch || false,
             garbageRows: garbageCount,
             maxRows: Math.max(1, 6 - garbageCount), // Playable rows
-            totalRows: 6 // Always 6 total visual rows
+            totalRows: 6, // Always 6 total visual rows
+            guesses: progress?.guesses || [] // Include guesses for board preservation
         };
         
         // Only send opponent data if opponent is still alive

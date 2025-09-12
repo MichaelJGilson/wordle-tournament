@@ -1689,6 +1689,40 @@
             showMessage('New match starting!', 'info');
         }
 
+        function restoreCompletedWord(serverGuesses) {
+            console.log('🎨 Restoring completed word display from server guesses:', serverGuesses);
+            
+            // Clear current display first
+            for (let i = 0; i < 6; i++) {
+                for (let j = 0; j < 5; j++) {
+                    const cell = document.getElementById(`cell-${i}-${j}`);
+                    if (cell) {
+                        cell.textContent = '';
+                        cell.className = 'letter-cell'; // Reset to base class
+                    }
+                }
+            }
+            
+            // Restore each guess with its colors
+            serverGuesses.forEach((guess, guessIndex) => {
+                const row = guess.row;
+                const guessText = guess.guess;
+                const result = guess.result;
+                
+                if (guessText && result && guessText.length === 5 && result.length === 5) {
+                    for (let i = 0; i < 5; i++) {
+                        const cell = document.getElementById(`cell-${row}-${i}`);
+                        if (cell) {
+                            cell.textContent = guessText[i];
+                            cell.classList.add('filled', result[i]);
+                        }
+                    }
+                }
+            });
+            
+            console.log('🎨 Completed word display restored');
+        }
+
         function forceCompleteReset() {
             console.log('🔥 FORCE COMPLETE RESET - Aggressive board clearing');
             
@@ -1778,17 +1812,32 @@
                 if (serverGameState.playerProgress) {
                     const serverRow = serverGameState.playerProgress.currentRow || 0;
                     const previousClientRow = gameState.currentRow;
+                    const awaitingNewMatch = serverGameState.playerProgress.awaitingNewMatch || false;
+                    const serverGuesses = serverGameState.playerProgress.guesses || [];
                     
-                    gameState.currentRow = serverRow;
                     gameState.garbageRows = serverGameState.playerProgress.garbageRows || 0;
                     gameState.maxRows = serverGameState.playerProgress.maxRows || 6; // Playable rows
                     gameState.totalRows = serverGameState.playerProgress.totalRows || 6; // Visual rows
+                    gameState.awaitingNewMatch = awaitingNewMatch;
                     
-                    // Check if player completed a word and got reset to row 0 (new word/opponent)
-                    if (serverRow === 0 && previousClientRow > 0 && serverGameState.status === 'playing') {
-                        console.log('🔄 BATTLE ROYALE RESET - Player completed word, clearing board');
-                        console.log('🔄 Previous row:', previousClientRow, '-> Server row:', serverRow);
-                        forceCompleteReset();
+                    // Handle board preservation when awaiting new match
+                    if (awaitingNewMatch) {
+                        console.log('🎯 Player awaiting new match - preserving completed board');
+                        // Keep the current row as is (don't sync from server)
+                        // Restore the completed word display if we have server guesses
+                        if (serverGuesses.length > 0) {
+                            restoreCompletedWord(serverGuesses);
+                        }
+                    } else {
+                        // Normal flow - sync row from server
+                        gameState.currentRow = serverRow;
+                        
+                        // Check if player got a new match and board should be reset
+                        if (serverRow === 0 && previousClientRow > 0 && serverGameState.status === 'playing') {
+                            console.log('🔄 BATTLE ROYALE RESET - New match assigned, clearing board');
+                            console.log('🔄 Previous row:', previousClientRow, '-> Server row:', serverRow);
+                            forceCompleteReset();
+                        }
                     }
                 }
                 
@@ -2011,6 +2060,13 @@
                 return;
             }
             
+            // Check if player is awaiting new match (Battle Royale only)
+            if (gameState.isBattleRoyale && gameState.awaitingNewMatch) {
+                console.log('🎯 Blocked input - player awaiting new match');
+                showMessage('Waiting for new opponent...', 'info');
+                return;
+            }
+            
             if (gameState.currentGuess.length < 5 && gameState.currentRow < 6) {
                 const letterIndex = gameState.currentGuess.length;
                 gameState.currentGuess += letter;
@@ -2048,6 +2104,13 @@
             if (!currentPlayer || !currentPlayer.alive) {
                 console.log('🚫 Blocked eliminated player from submitting guess');
                 showMessage('You have been eliminated!', 'error');
+                return;
+            }
+            
+            // Check if player is awaiting new match (Battle Royale only)
+            if (gameState.isBattleRoyale && gameState.awaitingNewMatch) {
+                console.log('🎯 Blocked guess submission - player awaiting new match');
+                showMessage('Waiting for new opponent...', 'info');
                 return;
             }
             
