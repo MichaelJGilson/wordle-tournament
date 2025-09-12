@@ -1721,10 +1721,20 @@
             });
             
             console.log('🎨 Completed word display restored');
+            
+            // Also restore keyboard colors for the completed word
+            if (serverGuesses.length > 0) {
+                const lastGuess = serverGuesses[serverGuesses.length - 1];
+                if (lastGuess && lastGuess.guess && lastGuess.result) {
+                    console.log('🎹 Restoring keyboard colors for completed word:', lastGuess.guess);
+                    updateKeyboardColors(lastGuess.guess, lastGuess.result);
+                }
+            }
         }
 
         function forceCompleteReset() {
             console.log('🔥 FORCE COMPLETE RESET - Aggressive board clearing');
+            console.log('🔥 Awaiting new match status:', gameState.awaitingNewMatch);
             
             // Extra aggressive cell clearing
             for (let i = 0; i < 6; i++) {
@@ -2236,9 +2246,17 @@
                 }
             }
 
-            // Clear current guess and advance to next row
+            // Clear current guess
             gameState.currentGuess = '';
-            gameState.currentRow++;
+            
+            // In Battle Royale mode, let server manage row advancement for completed words
+            // In Tournament mode, advance to next row locally
+            if (!gameState.isBattleRoyale || !correct) {
+                gameState.currentRow++;
+                console.log(`🎮 Advanced to row ${gameState.currentRow} (${gameState.isBattleRoyale ? 'BR incorrect guess' : 'Tournament mode'})`);
+            } else {
+                console.log(`🎯 Battle Royale word completed - waiting for server state update to manage row`);
+            }
 
             // Show scoring feedback
             if (correct) {
