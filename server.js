@@ -1239,20 +1239,18 @@ io.on('connection', (socket) => {
     });
 });
 
-// Serve the main game page
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'wordle_battle_royale_fixed.html'));
-});
-
-// API routes
+// API routes (must come BEFORE static file serving)
 app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
+    res.json({
+        status: 'OK',
         timestamp: new Date().toISOString(),
         activeGames: activeGames.size,
         connectedPlayers: playerSockets.size
     });
 });
+
+// Serve React production build static files
+app.use(express.static(path.join(__dirname, 'client/dist')));
 
 app.get('/api/games', (req, res) => {
     const games = Array.from(activeGames.values()).map(game => ({
@@ -1279,6 +1277,11 @@ app.get('/api/public/queue', (req, res) => {
         isMatchmakingActive: publicMatchmakingInterval !== null,
         estimatedWaitTime: Math.max(0, Math.ceil(publicMatchmakingQueue.length / 2) * 3)
     });
+});
+
+// Serve React app for all remaining routes (must be LAST)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
