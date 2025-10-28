@@ -13,6 +13,12 @@ class SocketService {
     private eventHandlers: Map<string, Function> = new Map();
 
     connect(): void {
+        // Don't reconnect if already connected
+        if (this.socket && this.socket.connected) {
+            console.log('✅ Already connected to server');
+            return;
+        }
+
         // Auto-detect server URL based on environment
         const currentHost = window.location.hostname;
         const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';

@@ -17,25 +17,31 @@ export function useSocket({
     onQueueStatus,
     onMatchError,
 }: UseSocketProps) {
-    // Connect to socket on mount
+    // Connect to socket on mount (only once)
     useEffect(() => {
         socketService.connect();
 
-        // Set up event handlers
+        // Cleanup on unmount - only disconnect when component truly unmounts
+        return () => {
+            socketService.disconnect();
+        };
+    }, []); // Empty dependency array - only run once on mount
+
+    // Update event handlers when they change (without reconnecting)
+    useEffect(() => {
         socketService.on('connectionChange', onConnectionChange);
         socketService.on('gameUpdate', onGameUpdate);
         socketService.on('matchFound', onMatchFound);
         socketService.on('queueStatus', onQueueStatus);
         socketService.on('matchError', onMatchError);
 
-        // Cleanup on unmount
+        // Don't disconnect on cleanup, just remove handlers
         return () => {
             socketService.off('connectionChange');
             socketService.off('gameUpdate');
             socketService.off('matchFound');
             socketService.off('queueStatus');
             socketService.off('matchError');
-            socketService.disconnect();
         };
     }, [onConnectionChange, onGameUpdate, onMatchFound, onQueueStatus, onMatchError]);
 
