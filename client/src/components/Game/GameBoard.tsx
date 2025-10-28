@@ -4,6 +4,7 @@ import { Keyboard } from '../UI/Keyboard';
 import { StatsBar } from '../UI/StatsBar';
 import { PlayersList } from '../UI/PlayersList';
 import { OpponentGrid } from '../UI/OpponentGrid';
+import { useClientTimer } from '../../hooks/useClientTimer';
 import type { GameState, LetterState, GuessProgress } from '../../types/game';
 
 interface GameBoardProps {
@@ -21,22 +22,39 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     message,
     messageType
 }) => {
-    // Calculate letter states for keyboard coloring
+    // Client-side timer that counts down every second
+    const { formattedTimer } = useClientTimer({
+        serverTimer: state.gameTimer || 0,
+        isPlaying: state.gameStatus === 'playing'
+    });
+
+    // Calculate letter states for keyboard coloring from guess history
     const letterStates = useMemo(() => {
         const states = new Map<string, LetterState>();
 
         // Process all guesses to determine letter states
-        state.players
-            .find(p => p.id === state.playerId)
-            // For now, we'll track keyboard states from the current game state
-            // In a full implementation, you'd track all historical guesses
+        state.guesses.forEach(guess => {
+            guess.guess.split('').forEach((letter, index) => {
+                const letterState = guess.result[index];
+                const currentState = states.get(letter);
+
+                // Priority: correct > present > absent
+                if (letterState === 'correct') {
+                    states.set(letter, 'correct');
+                } else if (letterState === 'present' && currentState !== 'correct') {
+                    states.set(letter, 'present');
+                } else if (letterState === 'absent' && !currentState) {
+                    states.set(letter, 'absent');
+                }
+            });
+        });
 
         return states;
-    }, [state]);
+    }, [state.guesses]);
 
-    // Format timer display
+    // Format timer display with client-side countdown
     const timerDisplay = state.gameTimer
-        ? `🔥 Battle Royale: ${state.gameTimerFormatted || '15:00'} remaining`
+        ? `🔥 Battle Royale: ${formattedTimer} remaining`
         : '🔥 Battle Royale Active';
 
     // Use guesses from state (synced from server)

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LetterCell } from './LetterCell';
 import type { GuessProgress } from '../../types/game';
 
@@ -17,6 +17,23 @@ export const WordGrid: React.FC<WordGridProps> = ({
     garbageRows,
     maxRows
 }) => {
+    // Track the last guess count to detect new guesses
+    const [lastGuessCount, setLastGuessCount] = useState(0);
+    const [animateRow, setAnimateRow] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (guesses.length > lastGuessCount) {
+            // New guess was added - animate the most recent one
+            const newestGuess = guesses[guesses.length - 1];
+            setAnimateRow(newestGuess.row);
+            setLastGuessCount(guesses.length);
+
+            // Clear animation flag after animation completes
+            const timer = setTimeout(() => setAnimateRow(null), 700);
+            return () => clearTimeout(timer);
+        }
+    }, [guesses.length, lastGuessCount]);
+
     // Render garbage rows at the top
     const renderGarbageRows = () => {
         return Array.from({ length: garbageRows }).map((_, rowIndex) => (
@@ -59,7 +76,7 @@ export const WordGrid: React.FC<WordGridProps> = ({
                                 key={`${rowIndex}-${colIndex}`}
                                 letter={letter}
                                 state={state}
-                                animate={!isCurrentRow && letter !== '' && state !== ''}
+                                animate={rowIndex === animateRow && letter !== '' && state !== ''}
                             />
                         );
                     })}
