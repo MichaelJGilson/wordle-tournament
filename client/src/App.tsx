@@ -29,24 +29,67 @@ export const App: React.FC = () => {
     }, [updateState]);
 
     const handleGameUpdate = useCallback((serverState: ServerGameState) => {
-        updateState({
+        console.log('📡 Received game update:', serverState);
+        console.log('📡 Game status:', serverState.status);
+        console.log('📡 Players in update:', serverState.players?.length || 0);
+
+        // Find current player
+        const currentPlayer = serverState.players?.find(p => p.id === state.playerId);
+
+        // Build update object
+        const updates: Partial<typeof state> = {
             gameStatus: serverState.status,
             playersAlive: serverState.playersAlive,
             players: serverState.players,
             gameTimer: serverState.gameTimer,
-        });
+            gameTimerFormatted: serverState.gameTimerFormatted,
+            isBattleRoyale: serverState.isBattleRoyale,
+        };
+
+        // Update Battle Royale specific state
+        if (serverState.playerProgress) {
+            updates.garbageRows = serverState.playerProgress.garbageRows || 0;
+            updates.maxRows = serverState.playerProgress.maxRows || 6;
+            updates.totalRows = serverState.playerProgress.totalRows || 6;
+            updates.awaitingNewMatch = serverState.playerProgress.awaitingNewMatch || false;
+
+            // Only sync currentRow if not awaiting new match
+            if (!serverState.playerProgress.awaitingNewMatch) {
+                updates.currentRow = serverState.playerProgress.currentRow || 0;
+            }
+        }
+
+        // Update opponent info
+        if (serverState.currentOpponent && typeof serverState.currentOpponent !== 'string') {
+            updates.currentOpponent = serverState.currentOpponent;
+        }
+
+        // Update player stats
+        if (currentPlayer) {
+            updates.score = currentPlayer.score || 0;
+            updates.killCount = currentPlayer.playersEliminated || 0;
+            updates.yourRank = currentPlayer.rank || 0;
+        }
+
+        updateState(updates);
 
         if (serverState.status === 'waiting') setCurrentScreen('lobby');
         else if (serverState.status === 'playing') setCurrentScreen('game');
-    }, [updateState]);
+    }, [updateState, state.playerId]);
 
     const handleMatchFound = useCallback((matchData: MatchFoundData) => {
+        console.log('🎉 Match found:', matchData);
         updateState({
             gameId: matchData.gameId,
             playerId: matchData.playerId,
+            gameStatus: 'playing',
+            publicMatchmaking: true,
+            isBattleRoyale: true,
         });
         setSearching(false);
         setCurrentScreen('game');
+        setMessage(`Match found! Opponent: ${matchData.opponent}`);
+        setMessageType('success');
     }, [updateState]);
 
     const handleQueueStatus = useCallback((status: QueueStatus) => {
