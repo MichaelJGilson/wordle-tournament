@@ -24,6 +24,7 @@ const initialState: GameState = {
     totalRows: 6,
     awaitingNewMatch: false,
     publicMatchmaking: false,
+    guesses: [],
 };
 
 export function useGameState() {

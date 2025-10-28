@@ -35,6 +35,7 @@ export interface GameState {
     totalRows: number;
     awaitingNewMatch: boolean;
     publicMatchmaking: boolean;
+    guesses: GuessProgress[];
 }
 
 export interface Opponent {

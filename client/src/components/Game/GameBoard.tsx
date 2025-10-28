@@ -39,9 +39,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         ? `🔥 Battle Royale: ${state.gameTimerFormatted || '15:00'} remaining`
         : '🔥 Battle Royale Active';
 
-    // Build guesses array from player progress
-    const guesses: GuessProgress[] = [];
-    // This will be populated from server state updates
+    // Use guesses from state (synced from server)
+    const guesses: GuessProgress[] = state.guesses;
 
     // Get opponent info
     const opponentName = typeof state.currentOpponent === 'string'

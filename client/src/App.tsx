@@ -52,6 +52,7 @@ export const App: React.FC = () => {
             updates.maxRows = serverState.playerProgress.maxRows || 6;
             updates.totalRows = serverState.playerProgress.totalRows || 6;
             updates.awaitingNewMatch = serverState.playerProgress.awaitingNewMatch || false;
+            updates.guesses = serverState.playerProgress.guesses || [];
 
             // Only sync currentRow if not awaiting new match
             if (!serverState.playerProgress.awaitingNewMatch) {
@@ -84,11 +85,19 @@ export const App: React.FC = () => {
             playerId: matchData.playerId,
             gameStatus: 'playing',
             publicMatchmaking: true,
-            isBattleRoyale: true,
+            isBattleRoyale: matchData.isBattleRoyale || false,
         });
         setSearching(false);
         setCurrentScreen('game');
-        setMessage(`Match found! Opponent: ${matchData.opponent}`);
+
+        // Show appropriate message based on game type
+        if (matchData.isBattleRoyale) {
+            setMessage('Battle Royale starting!');
+        } else if (matchData.opponent) {
+            setMessage(`Match found! Opponent: ${matchData.opponent}`);
+        } else {
+            setMessage('Match found!');
+        }
         setMessageType('success');
     }, [updateState]);
 
