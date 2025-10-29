@@ -286,11 +286,14 @@ function processPublicMatchmakingQueue() {
                 
                 console.log(`✅ ${playerEntry.playerName} joined Battle Royale (${publicBattleRoyaleGame.players.size} players)`);
 
-                // Add bots if needed when first player joins (before auto-start)
+                // Add bots to fill lobby to target size when first player joins
                 if (BOT_CONFIG.AUTO_ADD_BOTS && publicBattleRoyaleGame.players.size === 1) {
-                    const botsToAdd = BOT_CONFIG.MIN_PLAYERS_FOR_START - publicBattleRoyaleGame.players.size;
+                    const botsToAdd = Math.min(
+                        BOT_CONFIG.TARGET_LOBBY_SIZE - publicBattleRoyaleGame.players.size,
+                        BOT_CONFIG.MAX_BOTS_PER_GAME
+                    );
                     if (botsToAdd > 0) {
-                        console.log(`🤖 First player joined - adding ${botsToAdd} bot(s) to fill lobby`);
+                        console.log(`🤖 First player joined - adding ${botsToAdd} bot(s) to fill lobby to ${BOT_CONFIG.TARGET_LOBBY_SIZE} players`);
                         publicBattleRoyaleGame.addBots(botsToAdd);
                         publicBattleRoyaleGame.broadcastGameState();
                     }
@@ -439,10 +442,13 @@ class BattleRoyaleGame {
             return { success: false, error: 'Game already started or ended' };
         }
 
-        // Add bots if needed to reach minimum players
-        if (BOT_CONFIG.AUTO_ADD_BOTS && this.players.size < BOT_CONFIG.MIN_PLAYERS_FOR_START) {
-            const botsToAdd = BOT_CONFIG.MIN_PLAYERS_FOR_START - this.players.size;
-            console.log(`🤖 Adding ${botsToAdd} bots to reach minimum player count`);
+        // Add bots if needed to fill lobby (fallback for custom games)
+        if (BOT_CONFIG.AUTO_ADD_BOTS && this.players.size < 2) {
+            const botsToAdd = Math.min(
+                BOT_CONFIG.TARGET_LOBBY_SIZE - this.players.size,
+                BOT_CONFIG.MAX_BOTS_PER_GAME
+            );
+            console.log(`🤖 Adding ${botsToAdd} bots to fill lobby`);
             this.addBots(botsToAdd);
         }
 

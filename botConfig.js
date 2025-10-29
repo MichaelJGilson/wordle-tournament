@@ -8,7 +8,7 @@
 // - Give up chance (% chance to give up)
 
 // Current difficulty setting - CHANGE THIS NUMBER (1-10)
-const BOT_DIFFICULTY_LEVEL = 5;  // 5 is medium difficulty
+const BOT_DIFFICULTY_LEVEL = 3;  // 3 is easy difficulty
 
 // Calculate difficulty settings based on level (1-10)
 function calculateDifficulty(level) {
@@ -58,9 +58,9 @@ const BOT_NAMES = [
 
 // Bot settings
 const BOT_CONFIG = {
-    // How many bots to add when starting a game with fewer than 2 players
-    MIN_PLAYERS_FOR_START: 2,
-    MAX_BOTS_PER_GAME: 10,
+    // Target number of players for a full lobby (100 for Battle Royale)
+    TARGET_LOBBY_SIZE: 100,
+    MAX_BOTS_PER_GAME: 99,
 
     // Whether to add bots automatically
     AUTO_ADD_BOTS: true,
