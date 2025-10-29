@@ -1,43 +1,51 @@
 // Bot Difficulty Configuration
-// Easy to adjust difficulty by changing these values
+// Difficulty scale: 1-10 (1 = easiest, 10 = hardest)
+//
+// Difficulty affects:
+// - Think time (how fast bots guess)
+// - Target guesses (how many attempts to solve)
+// - Mistake chance (% of non-optimal guesses)
+// - Give up chance (% chance to give up)
 
-const BOT_DIFFICULTIES = {
-    EASY: {
-        name: 'Easy',
-        minThinkTime: 3000,      // Minimum time before making a guess (ms)
-        maxThinkTime: 8000,      // Maximum time before making a guess (ms)
-        targetGuesses: 6,        // Average number of guesses to solve
-        mistakeChance: 0.3,      // 30% chance to make a non-optimal guess
-        giveUpChance: 0.1,       // 10% chance to give up after 4 wrong guesses
-    },
-    MEDIUM: {
-        name: 'Medium',
-        minThinkTime: 2000,
-        maxThinkTime: 5000,
-        targetGuesses: 4.5,      // Average 4-5 guesses
-        mistakeChance: 0.15,     // 15% chance to make a non-optimal guess
-        giveUpChance: 0.05,      // 5% chance to give up
-    },
-    HARD: {
-        name: 'Hard',
-        minThinkTime: 1000,
-        maxThinkTime: 3000,
-        targetGuesses: 3.5,      // Average 3-4 guesses
-        mistakeChance: 0.05,     // 5% chance to make a non-optimal guess
-        giveUpChance: 0.01,      // 1% chance to give up
-    },
-    EXPERT: {
-        name: 'Expert',
-        minThinkTime: 500,
-        maxThinkTime: 2000,
-        targetGuesses: 3,        // Average 3 guesses
-        mistakeChance: 0,        // Never makes mistakes
-        giveUpChance: 0,         // Never gives up
-    }
-};
+// Current difficulty setting - CHANGE THIS NUMBER (1-10)
+const BOT_DIFFICULTY_LEVEL = 5;  // 5 is medium difficulty
 
-// Current difficulty setting - CHANGE THIS TO ADJUST BOT DIFFICULTY
-const CURRENT_DIFFICULTY = 'MEDIUM';
+// Calculate difficulty settings based on level (1-10)
+function calculateDifficulty(level) {
+    // Clamp level between 1 and 10
+    const clampedLevel = Math.max(1, Math.min(10, level));
+
+    // Think time: level 1 = 5-10s, level 5 = 2-5s, level 10 = 0.5-1.5s
+    const minThinkTime = Math.round(5500 - (clampedLevel * 500));  // 5000ms to 500ms
+    const maxThinkTime = Math.round(10500 - (clampedLevel * 900)); // 10000ms to 1500ms
+
+    // Target guesses: level 1 = 6, level 5 = 4.5, level 10 = 3
+    const targetGuesses = 6.3 - (clampedLevel * 0.33);
+
+    // Mistake chance: level 1 = 40%, level 5 = 15%, level 10 = 0%
+    const mistakeChance = Math.max(0, 0.44 - (clampedLevel * 0.044));
+
+    // Give up chance: level 1 = 15%, level 5 = 5%, level 10 = 0%
+    const giveUpChance = Math.max(0, 0.165 - (clampedLevel * 0.0165));
+
+    return {
+        level: clampedLevel,
+        minThinkTime: Math.max(500, minThinkTime),
+        maxThinkTime: Math.max(1500, maxThinkTime),
+        targetGuesses: Math.max(3, targetGuesses),
+        mistakeChance: Math.max(0, Math.min(1, mistakeChance)),
+        giveUpChance: Math.max(0, Math.min(1, giveUpChance)),
+    };
+}
+
+// Pre-calculated difficulty levels for reference:
+// Level 1:  Think: 5.0-9.1s, Guesses: 6.0, Mistakes: 40%, GiveUp: 15%
+// Level 3:  Think: 4.0-7.3s, Guesses: 5.3, Mistakes: 31%, GiveUp: 11%
+// Level 5:  Think: 3.0-5.5s, Guesses: 4.6, Mistakes: 22%, GiveUp: 7%
+// Level 7:  Think: 2.0-3.7s, Guesses: 4.0, Mistakes: 13%, GiveUp: 4%
+// Level 10: Think: 0.5-1.5s, Guesses: 3.0, Mistakes: 0%,  GiveUp: 0%
+
+const CURRENT_DIFFICULTY = calculateDifficulty(BOT_DIFFICULTY_LEVEL);
 
 // Bot name pool for variety
 const BOT_NAMES = [
@@ -58,7 +66,7 @@ const BOT_CONFIG = {
     AUTO_ADD_BOTS: true,
 
     // Get current difficulty settings
-    getDifficulty: () => BOT_DIFFICULTIES[CURRENT_DIFFICULTY],
+    getDifficulty: () => CURRENT_DIFFICULTY,
 
     // Get a random bot name
     getRandomBotName: (usedNames = []) => {
@@ -70,4 +78,4 @@ const BOT_CONFIG = {
     }
 };
 
-module.exports = { BOT_CONFIG, BOT_DIFFICULTIES, CURRENT_DIFFICULTY };
+module.exports = { BOT_CONFIG, BOT_DIFFICULTY_LEVEL };
