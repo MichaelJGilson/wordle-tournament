@@ -74,9 +74,35 @@ export const App: React.FC = () => {
 
         updateState(updates);
 
+        // Check for elimination or victory (only show once)
+        if (currentPlayer && !state.overlayShown) {
+            if (!currentPlayer.alive) {
+                // Player was eliminated - show elimination overlay after small delay
+                updateState({ overlayShown: true });
+                setTimeout(() => {
+                    setEliminationData({
+                        rank: currentPlayer.rank || 0,
+                        score: currentPlayer.score || 0,
+                        wordsCompleted: currentPlayer.wordsCompleted || 0,
+                        playersEliminated: currentPlayer.playersEliminated || 0,
+                    });
+                }, 2000);
+            } else if (serverState.status === 'ended' && currentPlayer.alive) {
+                // Player won! - show victory overlay after small delay
+                updateState({ overlayShown: true });
+                setTimeout(() => {
+                    setVictoryData({
+                        score: currentPlayer.score || 0,
+                        wordsCompleted: currentPlayer.wordsCompleted || 0,
+                        playersEliminated: currentPlayer.playersEliminated || 0,
+                    });
+                }, 2000);
+            }
+        }
+
         if (serverState.status === 'waiting') setCurrentScreen('lobby');
         else if (serverState.status === 'playing') setCurrentScreen('game');
-    }, [updateState, state.playerId]);
+    }, [updateState, state.playerId, state.overlayShown]);
 
     const handleMatchFound = useCallback((matchData: MatchFoundData) => {
         console.log('🎉 Match found:', matchData);
@@ -215,8 +241,14 @@ export const App: React.FC = () => {
             {eliminationData && (
                 <EliminationOverlay
                     data={eliminationData}
-                    onPlayAgain={() => setCurrentScreen('main-menu')}
-                    onSpectate={() => setEliminationData(null)}
+                    onPlayAgain={() => {
+                        setEliminationData(null);
+                        updateState({ overlayShown: false });
+                        setCurrentScreen('main-menu');
+                    }}
+                    onSpectate={() => {
+                        setEliminationData(null);
+                    }}
                     show={!!eliminationData}
                 />
             )}
@@ -224,8 +256,14 @@ export const App: React.FC = () => {
             {victoryData && (
                 <VictoryOverlay
                     data={victoryData}
-                    onPlayAgain={() => setCurrentScreen('main-menu')}
-                    onSpectate={() => setVictoryData(null)}
+                    onPlayAgain={() => {
+                        setVictoryData(null);
+                        updateState({ overlayShown: false });
+                        setCurrentScreen('main-menu');
+                    }}
+                    onSpectate={() => {
+                        setVictoryData(null);
+                    }}
                     show={!!victoryData}
                 />
             )}
