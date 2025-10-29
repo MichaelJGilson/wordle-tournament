@@ -285,14 +285,24 @@ function processPublicMatchmakingQueue() {
                 });
                 
                 console.log(`✅ ${playerEntry.playerName} joined Battle Royale (${publicBattleRoyaleGame.players.size} players)`);
-                
+
+                // Add bots if needed when first player joins (before auto-start)
+                if (BOT_CONFIG.AUTO_ADD_BOTS && publicBattleRoyaleGame.players.size === 1) {
+                    const botsToAdd = BOT_CONFIG.MIN_PLAYERS_FOR_START - publicBattleRoyaleGame.players.size;
+                    if (botsToAdd > 0) {
+                        console.log(`🤖 First player joined - adding ${botsToAdd} bot(s) to fill lobby`);
+                        publicBattleRoyaleGame.addBots(botsToAdd);
+                        publicBattleRoyaleGame.broadcastGameState();
+                    }
+                }
+
                 // Auto-start when we reach minimum players
                 if (publicBattleRoyaleGame.players.size >= 2 && publicBattleRoyaleGame.status === 'waiting') {
                     setTimeout(() => {
                         if (publicBattleRoyaleGame.status === 'waiting') {
                             console.log(`🚀 Auto-starting Battle Royale with ${publicBattleRoyaleGame.players.size} players`);
                             const startResult = publicBattleRoyaleGame.startGame(publicBattleRoyaleGame.hostId);
-                            
+
                             if (startResult.success) {
                                 // Broadcast to all players (Battle Royale handles individual updates internally)
                                 publicBattleRoyaleGame.broadcastGameState();
