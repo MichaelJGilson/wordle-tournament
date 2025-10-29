@@ -4,6 +4,8 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
+const { BotPlayer } = require('./botAI');
+const { BOT_CONFIG } = require('./botConfig');
 
 // Generate short, user-friendly game IDs
 function generateShortId(length = 6) {
@@ -357,10 +359,14 @@ class BattleRoyaleGame {
         this.timerInterval = null;
         this.hostId = null;
         this.isBattleRoyale = true;
-        
+
+        // Bot management
+        this.bots = new Map(); // playerId -> BotPlayer instance
+        this.botTimers = new Map(); // playerId -> timer for next bot guess
+
         // Save to database
         db.run(`INSERT INTO games (id, max_players) VALUES (?, ?)`, [id, maxPlayers]);
-        
+
         console.log(`🎮 Created Battle Royale game: ${id} (max ${maxPlayers} players, 15min timer)`);
     }
     
@@ -422,26 +428,36 @@ class BattleRoyaleGame {
         if (this.status !== 'waiting') {
             return { success: false, error: 'Game already started or ended' };
         }
-        
+
+        // Add bots if needed to reach minimum players
+        if (BOT_CONFIG.AUTO_ADD_BOTS && this.players.size < BOT_CONFIG.MIN_PLAYERS_FOR_START) {
+            const botsToAdd = BOT_CONFIG.MIN_PLAYERS_FOR_START - this.players.size;
+            console.log(`🤖 Adding ${botsToAdd} bots to reach minimum player count`);
+            this.addBots(botsToAdd);
+        }
+
         if (this.players.size < 2) {
             return { success: false, error: 'At least 2 players required to start battle royale' };
         }
-        
+
         // For public matches, allow auto-start. For custom games, only host can start
         if (!this.isPublicMatch && requestingPlayerId !== this.hostId) {
             return { success: false, error: 'Only the host can start the game' };
         }
-        
+
         this.status = 'playing';
-        
+
         // Start the global game timer
         this.startGameTimer();
-        
+
         // Assign initial random opponents
         this.assignRandomOpponents();
-        
-        console.log(`🎮 Battle Royale game ${this.id} started with ${this.players.size} players`);
-        
+
+        // Start bot AI for all bots
+        this.startBots();
+
+        console.log(`🎮 Battle Royale game ${this.id} started with ${this.players.size} players (${this.bots.size} bots)`);
+
         return { success: true };
     }
     
@@ -807,23 +823,26 @@ class BattleRoyaleGame {
     
     endGame() {
         if (this.status === 'ended') return;
-        
+
         this.status = 'ended';
-        
+
         if (this.timerInterval) {
             clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
-        
+
+        // Stop all bots
+        this.stopBots();
+
         // Set final rankings
         const alivePlayers = Array.from(this.players.values()).filter(p => p.alive);
         alivePlayers.forEach((player, index) => {
             player.rank = index + 1;
             db.run(`UPDATE players SET rank = ? WHERE id = ?`, [player.rank, player.id]);
         });
-        
+
         console.log(`🏁 Battle Royale game ${this.id} ended`);
-        
+
         this.broadcastGameState();
     }
     
@@ -1001,7 +1020,94 @@ class BattleRoyaleGame {
         
         return gameState;
     }
-    
+
+    // Bot Management Methods
+    addBots(count) {
+        const usedNames = Array.from(this.players.values()).map(p => p.name);
+        const botsAdded = [];
+
+        for (let i = 0; i < Math.min(count, BOT_CONFIG.MAX_BOTS_PER_GAME); i++) {
+            const botName = BOT_CONFIG.getRandomBotName([...usedNames, ...botsAdded]);
+            const botSocketId = `bot-${generateShortId(8)}`;
+
+            // Add bot as a regular player
+            const result = this.addPlayer(botSocketId, botName);
+
+            if (result.success) {
+                // Create and store bot AI instance
+                const botAI = new BotPlayer(botName, VALID_WORDS, ANSWER_WORDS);
+                this.bots.set(result.playerId, botAI);
+                botsAdded.push(botName);
+                console.log(`🤖 Added bot: ${botName} (${result.playerId})`);
+            }
+        }
+
+        return botsAdded.length;
+    }
+
+    startBots() {
+        // Start AI for all bots
+        for (const [playerId, botAI] of this.bots.entries()) {
+            this.scheduleBotGuess(playerId);
+        }
+    }
+
+    async scheduleBotGuess(playerId) {
+        const botAI = this.bots.get(playerId);
+        const player = this.players.get(playerId);
+        const progress = this.playerProgress.get(playerId);
+
+        if (!botAI || !player || !player.alive || !progress || this.status !== 'playing') {
+            return;
+        }
+
+        // Don't schedule if bot is waiting for a new word
+        if (progress.awaitingNewMatch || progress.completed) {
+            // Check again in a bit
+            this.botTimers.set(playerId, setTimeout(() => this.scheduleBotGuess(playerId), 1000));
+            return;
+        }
+
+        try {
+            // Get bot's next guess
+            const guess = await botAI.getNextGuess(progress.currentWord, progress.guesses);
+
+            // Check if game is still active
+            if (this.status !== 'playing' || !player.alive) {
+                return;
+            }
+
+            // Make the guess
+            if (guess) {
+                const result = this.makeGuess(playerId, guess);
+
+                if (result.success) {
+                    this.broadcastGameState();
+                }
+            }
+
+            // Schedule next guess if bot is still alive
+            if (player.alive && this.status === 'playing') {
+                setTimeout(() => this.scheduleBotGuess(playerId), 100);
+            }
+        } catch (error) {
+            console.error(`❌ Error in bot ${player.name} guess:`, error);
+        }
+    }
+
+    stopBots() {
+        // Stop all bot timers
+        for (const [playerId, timer] of this.botTimers.entries()) {
+            if (timer) clearTimeout(timer);
+        }
+        this.botTimers.clear();
+
+        // Stop all bot AI
+        for (const botAI of this.bots.values()) {
+            botAI.stop();
+        }
+    }
+
     formatTime(seconds) {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
