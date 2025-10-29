@@ -778,8 +778,11 @@ class BattleRoyaleGame {
             progress.completed = false;
             progress.awaitingNewMatch = false;
             // currentWord is already set in resetPlayerForNewRound
-            
-            console.log(`🧹 ${this.players.get(playerId)?.name} board cleared for new match with word: ${progress.currentWord}`);
+
+            // Clear garbage queue for new word
+            this.garbageQueue.set(playerId, []);
+
+            console.log(`🧹 ${this.players.get(playerId)?.name} board cleared for new match with word: ${progress.currentWord} (garbage cleared)`);
         }
     }
     
